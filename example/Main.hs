@@ -5,10 +5,13 @@
 
 module Main (main) where
 
+import qualified Data.Text               as T
 import Reflex.Dom
-import Reflex.Dom.DHTMLX
+import Reflex.Dom.DHTMLX.DateTime
 
 main :: IO ()
 main = mainWidget $ do
     el "h1" $ text "Date Widget Test"
-    dhtmlxDatePicker Nothing never
+    date <- dhtmlxDateTimePicker Nothing never
+    dynText $ maybe "Nothing" (T.pack . show) <$> date
+    return ()
