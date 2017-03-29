@@ -28,6 +28,7 @@ library
   
   build-depends:
       base         >= 4.9  && < 4.10
+    , containers   >= 0.5  && < 0.6
     , data-default >= 0.7  && < 0.8
     , ghcjs-dom
     , lens         >= 4.14 && < 4.15

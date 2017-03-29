@@ -12,6 +12,7 @@ module Reflex.Dom.DHTMLX.Date where
 import           Control.Lens
 import           Control.Monad.Trans
 import           Data.Default
+import           Data.Map                (Map)
 import           Data.Text               (Text)
 import qualified Data.Text               as T
 import           Data.Time
@@ -100,35 +101,33 @@ dateWidgetUpdates cal = do
               d <- getDateWidgetValue cal
               liftIO $ cb d
           js_addClickListener cal jscb
---          js_addChangeListener cal jscb
---          js_addTimeChangeListener cal jscb
     performEventAsync (act <$ pb)
 
 foreign import javascript unsafe
   "(function(){ $1['attachEvent'](\"onClick\", $2); })()"
   js_addClickListener :: DateWidgetRef -> Callback (JSVal -> JSVal -> IO ()) -> IO ()
---foreign import javascript unsafe
---  "(function(){ $1['attachEvent'](\"onChange\", $2); })()"
---  js_addChangeListener :: DateWidgetRef -> Callback (JSVal -> JSVal -> IO ()) -> IO ()
---foreign import javascript unsafe
---  "(function(){ $1['attachEvent'](\"onTimeChange\", $2); })()"
---  js_addTimeChangeListener :: DateWidgetRef -> Callback (JSVal -> JSVal -> IO ()) -> IO ()
 #else
 dateWidgetUpdates = error "dateWidgetUpdates: can only be used with GHCJS"
 #endif
 
 
+------------------------------------------------------------------------------
 data DatePickerConfig t = DatePickerConfig
-    { _dateTimePickerConfig_initialValue    :: Maybe Day
-    , _dateTimePickerConfig_setValue        :: Event t (Maybe Day)
-    , _dateTimePickerConfig_button          :: Maybe Element
-    , _dateTimePickerConfig_weekStart       :: WeekDay
+    { _datePickerConfig_initialValue :: Maybe Day
+    , _datePickerConfig_setValue     :: Event t (Maybe Day)
+    , _datePickerConfig_button       :: Maybe Element
+    , _datePickerConfig_weekStart    :: WeekDay
+    , _datePickerConfig_attributes   :: Dynamic t (Map Text Text)
     }
 
 makeLenses ''DatePickerConfig
 
 instance Reflex t => Default (DatePickerConfig t) where
-    def = DatePickerConfig Nothing never Nothing Sunday
+    def = DatePickerConfig Nothing never Nothing Sunday mempty
+
+instance HasAttributes (DatePickerConfig t) where
+  type Attrs (DatePickerConfig t) = Dynamic t (Map Text Text)
+  attributes = datePickerConfig_attributes
 
 newtype DatePicker t = DatePicker
     { _datePicker_value :: Dynamic t (Maybe Day)
@@ -143,10 +142,11 @@ dhtmlxDatePicker
     :: MonadWidget t m
     => DatePickerConfig t
     -> m (DatePicker t)
-dhtmlxDatePicker (DatePickerConfig iv sv b wstart) = do
+dhtmlxDatePicker (DatePickerConfig iv sv b wstart attrs) = do
     let fmt = "%Y-%m-%d"
         formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt)
     ti <- textInput $ def
+      & attributes .~ attrs
       & textInputConfig_initialValue .~ formatter iv
       & textInputConfig_setValue .~ fmap formatter sv
     let dateEl = toElement $ _textInput_element ti

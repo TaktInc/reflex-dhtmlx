@@ -12,6 +12,7 @@ module Reflex.Dom.DHTMLX.DateTime where
 import           Control.Lens
 import           Control.Monad.Trans
 import           Data.Default
+import           Data.Map                (Map)
 import           Data.Text               (Text)
 import qualified Data.Text               as T
 import           Data.Time
@@ -133,18 +134,25 @@ minutesIntervalToInt Minutes5 = 5
 minutesIntervalToInt Minutes10 = 10
 minutesIntervalToInt Minutes15 = 15
 
+
+------------------------------------------------------------------------------
 data DateTimePickerConfig t = DateTimePickerConfig
     { _dateTimePickerConfig_initialValue    :: Maybe UTCTime
     , _dateTimePickerConfig_setValue        :: Event t (Maybe UTCTime)
     , _dateTimePickerConfig_button          :: Maybe Element
     , _dateTimePickerConfig_weekStart       :: WeekDay
     , _dateTimePickerConfig_minutesInterval :: MinutesInterval
+    , _dateTimePickerConfig_attributes      :: Dynamic t (Map Text Text)
     }
 
 makeLenses ''DateTimePickerConfig
 
 instance Reflex t => Default (DateTimePickerConfig t) where
-    def = DateTimePickerConfig Nothing never Nothing Sunday Minutes1
+    def = DateTimePickerConfig Nothing never Nothing Sunday Minutes1 mempty
+
+instance HasAttributes (DateTimePickerConfig t) where
+  type Attrs (DateTimePickerConfig t) = Dynamic t (Map Text Text)
+  attributes = dateTimePickerConfig_attributes
 
 newtype DateTimePicker t = DateTimePicker
     { _dateTimePicker_value :: Dynamic t (Maybe UTCTime)
@@ -159,10 +167,11 @@ dhtmlxDateTimePicker
     :: MonadWidget t m
     => DateTimePickerConfig t
     -> m (DateTimePicker t)
-dhtmlxDateTimePicker (DateTimePickerConfig iv sv b wstart mint) = mdo
+dhtmlxDateTimePicker (DateTimePickerConfig iv sv b wstart mint attrs) = mdo
     let fmt = "%Y-%m-%d %H:%M"
         formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt)
     ti <- textInput $ def
+      & attributes .~ attrs
       & textInputConfig_initialValue .~ formatter iv
       & textInputConfig_setValue .~ leftmost
           [ fmap formatter sv
