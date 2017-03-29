@@ -3,43 +3,88 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE RecursiveDo       #-}
+{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE TypeFamilies      #-}
 
 module Reflex.Dom.DHTMLX.DateTime where
 
 ------------------------------------------------------------------------------
+import           Control.Lens
 import           Control.Monad.Trans
+import           Data.Default
 import           Data.Text               (Text)
 import qualified Data.Text               as T
 import           Data.Time
-#ifdef ghcjs_HOST_OS
 import           GHCJS.DOM.Types hiding (Event, Text)
+#ifdef ghcjs_HOST_OS
 import           GHCJS.Marshal.Pure (pToJSVal)
 import           GHCJS.Foreign.Callback
 import           GHCJS.Types
 #endif
 import           Reflex.Dom hiding (Element, fromJSString)
+import           Reflex.Dom.DHTMLX.Common
 ------------------------------------------------------------------------------
 
-newtype DateTimeWidgetRef = DateTimeWidgetRef { unDateTimeWidgetRef :: JSVal }
-
-------------------------------------------------------------------------------
-createDhtmlxDateTimeWidget :: Element -> IO DateTimeWidgetRef
 #ifdef ghcjs_HOST_OS
-createDhtmlxDateTimeWidget elmt = js_createDhtmlxDateTimeWidget (pToJSVal elmt)
+newtype DateTimeWidgetRef = DateTimeWidgetRef { unDateTimeWidgetRef :: JSVal }
+#else
+data DateTimeWidgetRef
+#endif
+
+------------------------------------------------------------------------------
+createDhtmlxDateTimeWidget
+    :: Element
+    -> WeekDay
+    -> MinutesInterval
+    -> IO DateTimeWidgetRef
+#ifdef ghcjs_HOST_OS
+createDhtmlxDateTimeWidget elmt wstart mint =
+    js_createDhtmlxDateTimeWidget (pToJSVal elmt) (weekDayToInt wstart)
+                                  (minutesIntervalToInt mint)
 
 foreign import javascript unsafe
   "(function(){\
     var cal = new dhtmlXCalendarObject($1);\
-    cal.setWeekStartDay(7);\
-    cal.setMinutesInterval(1);\
+    cal.setWeekStartDay($2);\
+    cal.setMinutesInterval($3);\
     cal.setDateFormat('%Y-%m-%d %H:%i');\
     cal.showTime();\
     return cal;\
    })()"
-  js_createDhtmlxDateTimeWidget :: JSVal -> IO DateTimeWidgetRef
+  js_createDhtmlxDateTimeWidget :: JSVal -> Int -> Int -> IO DateTimeWidgetRef
 
 #else
-createDhtmlxDateTimeWidget = error "createDhtmlxDateTimeWidget: can only be used with GHCJS"
+createDhtmlxDateTimeWidget =
+    error "createDhtmlxDateTimeWidget: can only be used with GHCJS"
+#endif
+
+
+------------------------------------------------------------------------------
+createDhtmlxDateTimeWidgetButton
+    :: Element
+    -> Element
+    -> WeekDay
+    -> MinutesInterval
+    -> IO DateTimeWidgetRef
+#ifdef ghcjs_HOST_OS
+createDhtmlxDateTimeWidgetButton b elmt wstart mint =
+    js_createDhtmlxDateTimeWidgetButton (pToJSVal b) (pToJSVal elmt)
+                                        (weekDayToInt wstart)
+                                        (minutesIntervalToInt mint)
+
+foreign import javascript unsafe
+  "(function(){\
+    var cal = new dhtmlXCalendarObject({input: $2, button: $1});\
+    cal.setWeekStartDay($3);\
+    cal.setMinutesInterval($4);\
+    cal.setDateFormat('%Y-%m-%d %H:%i');\
+    cal.showTime();\
+    return cal;\
+   })()"
+  js_createDhtmlxDateTimeWidgetButton :: JSVal -> JSVal -> Int -> Int -> IO DateTimeWidgetRef
+
+#else
+createDhtmlxDateTimeWidgetButton = error "createDhtmlxDateTimeWidgetButton: can only be used with GHCJS"
 #endif
 
 
@@ -79,14 +124,42 @@ foreign import javascript unsafe
 dateWidgetUpdates = error "dateWidgetUpdates: can only be used with GHCJS"
 #endif
 
+data MinutesInterval = Minutes1 | Minutes5 | Minutes10 | Minutes15
+  deriving (Eq,Ord,Show,Read,Enum,Bounded)
+
+minutesIntervalToInt :: MinutesInterval -> Int
+minutesIntervalToInt Minutes1 = 1
+minutesIntervalToInt Minutes5 = 5
+minutesIntervalToInt Minutes10 = 10
+minutesIntervalToInt Minutes15 = 15
+
+data DateTimePickerConfig t = DateTimePickerConfig
+    { _dateTimePickerConfig_initialValue    :: Maybe UTCTime
+    , _dateTimePickerConfig_setValue        :: Event t (Maybe UTCTime)
+    , _dateTimePickerConfig_button          :: Maybe Element
+    , _dateTimePickerConfig_weekStart       :: WeekDay
+    , _dateTimePickerConfig_minutesInterval :: MinutesInterval
+    }
+
+makeLenses ''DateTimePickerConfig
+
+instance Reflex t => Default (DateTimePickerConfig t) where
+    def = DateTimePickerConfig Nothing never Nothing Sunday Minutes1
+
+newtype DateTimePicker t = DateTimePicker
+    { _dateTimePicker_value :: Dynamic t (Maybe UTCTime)
+    }
+
+instance HasValue (DateTimePicker t) where
+    type Value (DateTimePicker t) = Dynamic t (Maybe UTCTime)
+    value = _dateTimePicker_value
 
 ------------------------------------------------------------------------------
 dhtmlxDateTimePicker
     :: MonadWidget t m
-    => Maybe UTCTime
-    -> Event t (Maybe UTCTime)
-    -> m (Dynamic t (Maybe UTCTime))
-dhtmlxDateTimePicker iv sv = mdo
+    => DateTimePickerConfig t
+    -> m (DateTimePicker t)
+dhtmlxDateTimePicker (DateTimePickerConfig iv sv b wstart mint) = mdo
     let fmt = "%Y-%m-%d %H:%M"
         formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt)
     ti <- textInput $ def
@@ -97,11 +170,12 @@ dhtmlxDateTimePicker iv sv = mdo
           ]
     let dateEl = toElement $ _textInput_element ti
     pb <- delay 0 =<< getPostBuild
-    calRef <- performEvent (liftIO (createDhtmlxDateTimeWidget dateEl) <$ pb)
+    let create = maybe createDhtmlxDateTimeWidget createDhtmlxDateTimeWidgetButton b
+    calRef <- performEvent (liftIO (create dateEl wstart mint) <$ pb)
     res <- widgetHold (return never) $ dateWidgetUpdates <$> calRef
     let ups = switchPromptlyDyn res
     let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
-    holdDyn iv $ leftmost
+    fmap DateTimePicker $ holdDyn iv $ leftmost
       [ parser <$> _textInput_input ti
       , parser <$> ups
       , sv
