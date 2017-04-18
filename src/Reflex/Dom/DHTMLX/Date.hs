@@ -33,7 +33,7 @@ data DateWidgetRef
 #endif
 
 ------------------------------------------------------------------------------
-createDhtmlxDateWidget :: Element -> WeekDay -> IO DateWidgetRef
+createDhtmlxDateWidget :: Element -> WeekDay -> Bool -> IO DateWidgetRef
 #ifdef ghcjs_HOST_OS
 createDhtmlxDateWidget elmt wstart =
     js_createDhtmlxDateWidget (pToJSVal elmt) (weekDayToInt wstart)
@@ -43,9 +43,12 @@ foreign import javascript unsafe
     var cal = new dhtmlXCalendarObject($1);\
     cal.setWeekStartDay($2);\
     cal.hideTime();\
+    if ($3) {\
+      cal.show();\
+    }\
     return cal;\
    })()"
-  js_createDhtmlxDateWidget :: JSVal -> Int -> IO DateWidgetRef
+  js_createDhtmlxDateWidget :: JSVal -> Int -> Bool -> IO DateWidgetRef
 
 #else
 createDhtmlxDateWidget = error "createDhtmlxDateWidget: can only be used with GHCJS"
@@ -57,6 +60,7 @@ createDhtmlxDateWidgetButton
     :: Element
     -> Element
     -> WeekDay
+    -> Bool
     -> IO DateWidgetRef
 #ifdef ghcjs_HOST_OS
 createDhtmlxDateWidgetButton b elmt wstart =
@@ -68,9 +72,12 @@ foreign import javascript unsafe
     var cal = new dhtmlXCalendarObject({input: $2, button: $1});\
     cal.setWeekStartDay($3);\
     cal.hideTime();\
+    if ($3) {\
+      cal.show();\
+    }\
     return cal;\
    })()"
-  js_createDhtmlxDateWidgetButton :: JSVal -> JSVal -> Int -> IO DateWidgetRef
+  js_createDhtmlxDateWidgetButton :: JSVal -> JSVal -> Int -> Bool -> IO DateWidgetRef
 
 #else
 createDhtmlxDateWidgetButton =
@@ -113,17 +120,18 @@ dateWidgetUpdates = error "dateWidgetUpdates: can only be used with GHCJS"
 
 ------------------------------------------------------------------------------
 data DatePickerConfig t = DatePickerConfig
-    { _datePickerConfig_initialValue :: Maybe Day
-    , _datePickerConfig_setValue     :: Event t (Maybe Day)
-    , _datePickerConfig_button       :: Maybe Element
-    , _datePickerConfig_weekStart    :: WeekDay
-    , _datePickerConfig_attributes   :: Dynamic t (Map Text Text)
+    { _datePickerConfig_initialValue  :: Maybe Day
+    , _datePickerConfig_setValue      :: Event t (Maybe Day)
+    , _datePickerConfig_button        :: Maybe Element
+    , _datePickerConfig_weekStart     :: WeekDay
+    , _datePickerConfig_attributes    :: Dynamic t (Map Text Text)
+    , _datePickerConfig_visibleOnLoad :: Bool
     }
 
 makeLenses ''DatePickerConfig
 
 instance Reflex t => Default (DatePickerConfig t) where
-    def = DatePickerConfig Nothing never Nothing Sunday mempty
+    def = DatePickerConfig Nothing never Nothing Sunday mempty False
 
 instance HasAttributes (DatePickerConfig t) where
   type Attrs (DatePickerConfig t) = Dynamic t (Map Text Text)
@@ -142,7 +150,7 @@ dhtmlxDatePicker
     :: MonadWidget t m
     => DatePickerConfig t
     -> m (DatePicker t)
-dhtmlxDatePicker (DatePickerConfig iv sv b wstart attrs) = do
+dhtmlxDatePicker (DatePickerConfig iv sv b wstart attrs visibleOnLoad) = do
     let fmt = "%Y-%m-%d"
         formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt)
     ti <- textInput $ def
@@ -152,7 +160,7 @@ dhtmlxDatePicker (DatePickerConfig iv sv b wstart attrs) = do
     let dateEl = toElement $ _textInput_element ti
     pb <- delay 0 =<< getPostBuild
     let create = maybe createDhtmlxDateWidget createDhtmlxDateWidgetButton b
-    calRef <- performEvent (liftIO (create dateEl wstart) <$ pb)
+    calRef <- performEvent (liftIO (create dateEl wstart visibleOnLoad) <$ pb)
     ups <- widgetHold (return never) $ dateWidgetUpdates <$> calRef
     let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
     fmap DatePicker $ holdDyn iv $ leftmost
