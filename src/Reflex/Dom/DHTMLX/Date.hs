@@ -99,20 +99,20 @@ getDateWidgetValue = error "getDateWidgetValue: can only be used with GHCJS"
 
 
 ------------------------------------------------------------------------------
-dateWidgetUpdates :: MonadWidget t m => DateWidgetRef -> m (Event t Text)
+dateWidgetUpdates
+    :: (TriggerEvent t m, MonadIO m)
+    => DateWidgetRef
+    -> m (Event t Text)
 #ifdef ghcjs_HOST_OS
 dateWidgetUpdates cal = do
-    pb <- getPostBuild
-    let act cb = liftIO $ do
-          jscb <- asyncCallback2 $ \_ _ -> do
-              d <- getDateWidgetValue cal
-              liftIO $ cb d
-          js_addClickListener cal jscb
-    performEventAsync (act <$ pb)
+    (event, trigger) <- newTriggerEvent
+    jscb <- liftIO $ asyncCallback $ trigger =<< getDateWidgetValue cal
+    liftIO $ js_addClickListener cal jscb
+    return event
 
 foreign import javascript unsafe
   "(function(){ $1['attachEvent'](\"onClick\", $2); })()"
-  js_addClickListener :: DateWidgetRef -> Callback (JSVal -> JSVal -> IO ()) -> IO ()
+  js_addClickListener :: DateWidgetRef -> Callback (IO ()) -> IO ()
 #else
 dateWidgetUpdates = error "dateWidgetUpdates: can only be used with GHCJS"
 #endif
@@ -158,13 +158,12 @@ dhtmlxDatePicker (DatePickerConfig iv sv b wstart attrs visibleOnLoad) = do
       & textInputConfig_initialValue .~ formatter iv
       & textInputConfig_setValue .~ fmap formatter sv
     let dateEl = toElement $ _textInput_element ti
-    pb <- delay 0 =<< getPostBuild
     let create = maybe createDhtmlxDateWidget createDhtmlxDateWidgetButton b
-    calRef <- performEvent (liftIO (create dateEl wstart visibleOnLoad) <$ pb)
-    ups <- widgetHold (return never) $ dateWidgetUpdates <$> calRef
+    calRef <- liftIO $ create dateEl wstart visibleOnLoad
+    ups <- dateWidgetUpdates calRef
     let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
     fmap DatePicker $ holdDyn iv $ leftmost
       [ parser <$> _textInput_input ti
-      , parser <$> switchPromptlyDyn ups
+      , parser <$> ups
       , sv
       ]
