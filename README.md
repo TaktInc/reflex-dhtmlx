@@ -20,7 +20,7 @@ these steps to update the exports for google closure compiler:
 
     `if(undefined...){ function dhtmlxEvent...`
 
-   and export dhtmlxEvent by adding `window.dhtmlxEvent=dhtmlxEvent;` immediately after
+   and export dhtmlxEvent by adding `window['dhtmlxEvent']=dhtmlxEvent;` immediately after
    the function definition, inside the `if` statement.
 
 Do this for any other symbols that may end up as `undefined` after running your program
