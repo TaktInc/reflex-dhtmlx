@@ -21,7 +21,6 @@ import           GHCJS.DOM.Types hiding (Event, Text)
 #ifdef ghcjs_HOST_OS
 import           GHCJS.Marshal.Pure (pToJSVal)
 import           GHCJS.Foreign.Callback
-import           GHCJS.Types
 import qualified GHCJS.DOM.Element as Element
 import           GHCJS.DOM.EventM (on)
 #endif
@@ -29,11 +28,7 @@ import           Reflex.Dom hiding (Element, fromJSString)
 import           Reflex.Dom.DHTMLX.Common
 ------------------------------------------------------------------------------
 
-#ifdef ghcjs_HOST_OS
 newtype DateWidgetRef = DateWidgetRef { unDateWidgetRef :: JSVal }
-#else
-data DateWidgetRef
-#endif
 
 ------------------------------------------------------------------------------
 createDhtmlxDateWidget :: Element -> WeekDay -> IO DateWidgetRef
@@ -89,20 +84,9 @@ getDateWidgetValue a = liftIO $ fromJSString <$> js_getDateWidgetValue a
 foreign import javascript unsafe
   "(function(){ return $1['getDate'](true); })()"
   js_getDateWidgetValue :: DateWidgetRef -> IO JSString
+
 #else
 getDateWidgetValue = error "getDateWidgetValue: can only be used with GHCJS"
-#endif
-
-dateWidgetShow :: MonadIO m  => DateWidgetRef -> m ()
-#ifdef ghcjs_HOST_OS
-dateWidgetShow = liftIO . js_dateWidgetShow
-
-foreign import javascript unsafe
-  "(function(){ $1['show'](); })()"
-  js_dateWidgetShow :: DateWidgetRef -> IO ()
-
-#else
-dateWidgetShow _ = return ()
 #endif
 
 ------------------------------------------------------------------------------
@@ -167,7 +151,7 @@ dhtmlxDatePicker (DatePickerConfig iv sv b wstart attrs visibleOnLoad) = do
     let dateEl = toElement $ _textInput_element ti
     let create p f = do
           calRef <- liftIO $ f dateEl wstart
-          when p $ dateWidgetShow calRef
+          when p $ dateWidgetShow $ unDateWidgetRef calRef
           dateWidgetUpdates calRef
     ups <- case b of
       Nothing | visibleOnLoad -> create True createDhtmlxDateWidget
