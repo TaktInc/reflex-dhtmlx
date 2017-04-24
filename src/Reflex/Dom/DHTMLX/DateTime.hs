@@ -10,6 +10,7 @@ module Reflex.Dom.DHTMLX.DateTime where
 
 ------------------------------------------------------------------------------
 import           Control.Lens
+import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Default
 import           Data.Map                (Map)
@@ -20,17 +21,14 @@ import           GHCJS.DOM.Types hiding (Event, Text)
 #ifdef ghcjs_HOST_OS
 import           GHCJS.Marshal.Pure (pToJSVal)
 import           GHCJS.Foreign.Callback
-import           GHCJS.Types
+import qualified GHCJS.DOM.Element as Element
+import           GHCJS.DOM.EventM (on)
 #endif
 import           Reflex.Dom hiding (Element, fromJSString)
 import           Reflex.Dom.DHTMLX.Common
 ------------------------------------------------------------------------------
 
-#ifdef ghcjs_HOST_OS
 newtype DateTimeWidgetRef = DateTimeWidgetRef { unDateTimeWidgetRef :: JSVal }
-#else
-data DateTimeWidgetRef
-#endif
 
 ------------------------------------------------------------------------------
 createDhtmlxDateTimeWidget
@@ -103,24 +101,22 @@ getDateTimeWidgetValue = error "getDateTimeWidgetValue: can only be used with GH
 
 
 ------------------------------------------------------------------------------
-dateWidgetUpdates :: MonadWidget t m => DateTimeWidgetRef -> m (Event t Text)
+dateWidgetUpdates
+    :: (TriggerEvent t m, MonadIO m) => DateTimeWidgetRef -> m (Event t Text)
 #ifdef ghcjs_HOST_OS
 dateWidgetUpdates cal = do
-    pb <- getPostBuild
-    let act cb = liftIO $ do
-          jscb <- asyncCallback2 $ \_ _ -> do
-              d <- getDateTimeWidgetValue cal
-              liftIO $ cb d
-          js_addClickListener cal jscb
-          js_addTimeChangeListener cal jscb
-    performEventAsync (act <$ pb)
+    (event, trigger) <- newTriggerEvent
+    jscb <- liftIO $ asyncCallback $ trigger =<< getDateTimeWidgetValue cal
+    liftIO $ js_addClickListener cal jscb
+    liftIO $ js_addTimeChangeListener cal jscb
+    return event
 
 foreign import javascript unsafe
   "(function(){ $1['attachEvent'](\"onClick\", $2); })()"
-  js_addClickListener :: DateTimeWidgetRef -> Callback (JSVal -> JSVal -> IO ()) -> IO ()
+  js_addClickListener :: DateTimeWidgetRef -> Callback (IO ()) -> IO ()
 foreign import javascript unsafe
   "(function(){ $1['attachEvent'](\"onTimeChange\", $2); })()"
-  js_addTimeChangeListener :: DateTimeWidgetRef -> Callback (JSVal -> JSVal -> IO ()) -> IO ()
+  js_addTimeChangeListener :: DateTimeWidgetRef -> Callback (IO ()) -> IO ()
 #else
 dateWidgetUpdates = error "dateWidgetUpdates: can only be used with GHCJS"
 #endif
@@ -143,12 +139,13 @@ data DateTimePickerConfig t = DateTimePickerConfig
     , _dateTimePickerConfig_weekStart       :: WeekDay
     , _dateTimePickerConfig_minutesInterval :: MinutesInterval
     , _dateTimePickerConfig_attributes      :: Dynamic t (Map Text Text)
+    , _dateTimePickerConfig_visibleOnLoad   :: Bool
     }
 
 makeLenses ''DateTimePickerConfig
 
 instance Reflex t => Default (DateTimePickerConfig t) where
-    def = DateTimePickerConfig Nothing never Nothing Sunday Minutes1 mempty
+    def = DateTimePickerConfig Nothing never Nothing Sunday Minutes1 mempty False
 
 instance HasAttributes (DateTimePickerConfig t) where
   type Attrs (DateTimePickerConfig t) = Dynamic t (Map Text Text)
@@ -167,7 +164,7 @@ dhtmlxDateTimePicker
     :: MonadWidget t m
     => DateTimePickerConfig t
     -> m (DateTimePicker t)
-dhtmlxDateTimePicker (DateTimePickerConfig iv sv b wstart mint attrs) = mdo
+dhtmlxDateTimePicker (DateTimePickerConfig iv sv b wstart mint attrs visibleOnLoad) = mdo
     let fmt = "%Y-%m-%d %H:%M"
         formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt)
     ti <- textInput $ def
@@ -178,11 +175,27 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b wstart mint attrs) = mdo
           , ups
           ]
     let dateEl = toElement $ _textInput_element ti
-    pb <- delay 0 =<< getPostBuild
-    let create = maybe createDhtmlxDateTimeWidget createDhtmlxDateTimeWidgetButton b
-    calRef <- performEvent (liftIO (create dateEl wstart mint) <$ pb)
-    res <- widgetHold (return never) $ dateWidgetUpdates <$> calRef
-    let ups = switchPromptlyDyn res
+    let create p f = do
+         calRef <- liftIO $ f dateEl wstart mint
+         when p $ dateWidgetShow $ unDateTimeWidgetRef calRef
+         dateWidgetUpdates calRef
+    ups <- case b of
+      Nothing | visibleOnLoad -> create True createDhtmlxDateTimeWidget
+      Nothing -> do
+        lazyCreate <- headE $ create False createDhtmlxDateTimeWidget <$ domEvent Focus ti
+        fmap (switch . current) $ widgetHold (return never) lazyCreate
+      Just b' | visibleOnLoad -> create True $ createDhtmlxDateTimeWidgetButton b'
+      Just b' -> do
+#ifdef ghcjs_HOST_OS
+        click' <- wrapDomEvent b' (`on` Element.click) $ return ()
+#else
+        let click' = never
+#endif
+        lazyCreate <- headE $ leftmost
+          [ create False (createDhtmlxDateTimeWidgetButton b') <$ domEvent Focus ti
+          , create True (createDhtmlxDateTimeWidgetButton b') <$ click'
+          ]
+        fmap (switch . current) $ widgetHold (return never) lazyCreate
     let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
     fmap DateTimePicker $ holdDyn iv $ leftmost
       [ parser <$> _textInput_input ti
