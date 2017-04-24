@@ -23,12 +23,18 @@ import           GHCJS.Marshal.Pure (pToJSVal)
 import           GHCJS.Foreign.Callback
 import qualified GHCJS.DOM.Element as Element
 import           GHCJS.DOM.EventM (on)
+import           GHCJS.Types (JSString, JSVal)
 #endif
 import           Reflex.Dom hiding (Element, fromJSString)
 import           Reflex.Dom.DHTMLX.Common
 ------------------------------------------------------------------------------
 
-newtype DateTimeWidgetRef = DateTimeWidgetRef { unDateTimeWidgetRef :: JSVal }
+newtype DateTimeWidgetRef = DateTimeWidgetRef
+#ifdef ghcjs_HOST_OS
+    { unDateTimeWidgetRef :: JSVal }
+#else
+    { unDateTimeWidgetRef :: () }
+#endif
 
 ------------------------------------------------------------------------------
 createDhtmlxDateTimeWidget

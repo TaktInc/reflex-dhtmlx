@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE FlexibleContexts  #-}
@@ -23,12 +24,18 @@ import           GHCJS.Marshal.Pure (pToJSVal)
 import           GHCJS.Foreign.Callback
 import qualified GHCJS.DOM.Element as Element
 import           GHCJS.DOM.EventM (on)
+import           GHCJS.Types
 #endif
 import           Reflex.Dom hiding (Element, fromJSString)
 import           Reflex.Dom.DHTMLX.Common
 ------------------------------------------------------------------------------
 
-newtype DateWidgetRef = DateWidgetRef { unDateWidgetRef :: JSVal }
+newtype DateWidgetRef = DateWidgetRef
+#ifdef ghcjs_HOST_OS
+    { unDateWidgetRef :: JSVal }
+#else
+    { unDateWidgetRef :: () }
+#endif
 
 ------------------------------------------------------------------------------
 createDhtmlxDateWidget :: Element -> WeekDay -> IO DateWidgetRef
