@@ -17,7 +17,9 @@ library
   include-dirs: include
   js-sources:
     -- Order is important (the reverse of what you think)
-    lib/dhtmlxcalendar.js
+    -- removing this so we can lazy load the js source to have
+    -- it skip google cc
+    -- lib/dhtmlxcalendar.js
   exposed-modules:
     Reflex.Dom.DHTMLX.Date
     Reflex.Dom.DHTMLX.DateTime
