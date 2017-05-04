@@ -48,14 +48,14 @@ createDhtmlxDateTimeWidget elmt wstart mint =
                                   (minutesIntervalToInt mint)
 
 foreign import javascript unsafe
-  "(function(){\
+  "(function(dhtmlXCalendarObject){\
     var cal = new dhtmlXCalendarObject($1);\
-    cal.setWeekStartDay($2);\
-    cal.setMinutesInterval($3);\
-    cal.setDateFormat('%Y-%m-%d %H:%i');\
-    cal.showTime();\
+    cal['setWeekStartDay']($2);\
+    cal['setMinutesInterval']($3);\
+    cal['setDateFormat']('%Y-%m-%d %H:%i');\
+    cal['showTime']();\
     return cal;\
-   })()"
+   })(window['dhtmlXCalendarObject'])"
   js_createDhtmlxDateTimeWidget :: JSVal -> Int -> Int -> IO DateTimeWidgetRef
 
 #else
@@ -78,14 +78,14 @@ createDhtmlxDateTimeWidgetButton b elmt wstart mint =
                                         (minutesIntervalToInt mint)
 
 foreign import javascript unsafe
-  "(function(){\
+  "(function(dhtmlXCalendarObject){\
     var cal = new dhtmlXCalendarObject({input: $2, button: $1});\
-    cal.setWeekStartDay($3);\
-    cal.setMinutesInterval($4);\
-    cal.setDateFormat('%Y-%m-%d %H:%i');\
-    cal.showTime();\
+    cal['setWeekStartDay']($3);\
+    cal['setMinutesInterval']($4);\
+    cal['setDateFormat']('%Y-%m-%d %H:%i');\
+    cal['showTime']();\
     return cal;\
-   })()"
+   })(window['dhtmlXCalendarObject'])"
   js_createDhtmlxDateTimeWidgetButton :: JSVal -> JSVal -> Int -> Int -> IO DateTimeWidgetRef
 
 #else
@@ -118,10 +118,10 @@ dateWidgetUpdates cal = do
     return event
 
 foreign import javascript unsafe
-  "(function(){ $1['attachEvent'](\"onClick\", $2); })()"
+  "(function(){ $1['attachEvent']('onClick', $2); })()"
   js_addClickListener :: DateTimeWidgetRef -> Callback (IO ()) -> IO ()
 foreign import javascript unsafe
-  "(function(){ $1['attachEvent'](\"onTimeChange\", $2); })()"
+  "(function(){ $1['attachEvent']('onTimeChange', $2); })()"
   js_addTimeChangeListener :: DateTimeWidgetRef -> Callback (IO ()) -> IO ()
 #else
 dateWidgetUpdates = error "dateWidgetUpdates: can only be used with GHCJS"
