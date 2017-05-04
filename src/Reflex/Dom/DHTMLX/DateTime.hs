@@ -1,10 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE RecursiveDo       #-}
-{-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecursiveDo         #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TypeFamilies        #-}
 
 module Reflex.Dom.DHTMLX.DateTime where
 
@@ -167,7 +168,7 @@ instance HasValue (DateTimePicker t) where
 
 ------------------------------------------------------------------------------
 dhtmlxDateTimePicker
-    :: MonadWidget t m
+    :: forall t m. MonadWidget t m
     => DateTimePickerConfig t
     -> m (DateTimePicker t)
 dhtmlxDateTimePicker (DateTimePickerConfig iv sv b wstart mint attrs visibleOnLoad) = mdo
@@ -192,14 +193,10 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b wstart mint attrs visibleOnLo
         fmap (switch . current) $ widgetHold (return never) lazyCreate
       Just b' | visibleOnLoad -> create True $ createDhtmlxDateTimeWidgetButton b'
       Just b' -> do
-#ifdef ghcjs_HOST_OS
-        click' <- wrapDomEvent b' (`on` Element.click) $ return ()
-#else
-        let click' = never
-#endif
+        b'' <- wrapRawElement (toElement b') (def :: RawElementConfig EventResult t m)
         lazyCreate <- headE $ leftmost
           [ create False (createDhtmlxDateTimeWidgetButton b') <$ domEvent Focus ti
-          , create True (createDhtmlxDateTimeWidgetButton b') <$ click'
+          , create True (createDhtmlxDateTimeWidgetButton b') <$ domEvent Click b''
           ]
         fmap (switch . current) $ widgetHold (return never) lazyCreate
     let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
