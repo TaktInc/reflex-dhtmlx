@@ -1,11 +1,12 @@
-{-# LANGUAGE CPP               #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE RecursiveDo       #-}
-{-# LANGUAGE TemplateHaskell   #-}
-{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecursiveDo         #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TypeFamilies        #-}
 
 module Reflex.Dom.DHTMLX.Date where
 
@@ -22,8 +23,6 @@ import           GHCJS.DOM.Types hiding (Event, Text)
 #ifdef ghcjs_HOST_OS
 import           GHCJS.Marshal.Pure (pToJSVal)
 import           GHCJS.Foreign.Callback
-import qualified GHCJS.DOM.Element as Element
-import           GHCJS.DOM.EventM (on)
 import           GHCJS.Types
 #endif
 import           Reflex.Dom hiding (Element, fromJSString)
@@ -145,7 +144,7 @@ instance HasValue (DatePicker t) where
 
 ------------------------------------------------------------------------------
 dhtmlxDatePicker
-    :: MonadWidget t m
+    :: forall t m. MonadWidget t m
     => DatePickerConfig t
     -> m (DatePicker t)
 dhtmlxDatePicker (DatePickerConfig iv sv b wstart attrs visibleOnLoad) = do
@@ -167,14 +166,10 @@ dhtmlxDatePicker (DatePickerConfig iv sv b wstart attrs visibleOnLoad) = do
         fmap (switch . current) $ widgetHold (return never) lazyCreate
       Just b' | visibleOnLoad -> create True $ createDhtmlxDateWidgetButton b'
       Just b' -> do
-#ifdef ghcjs_HOST_OS
-        click' <- wrapDomEvent b' (`on` Element.click) $ return ()
-#else
-        let click' = never
-#endif
+        b'' <- wrapRawElement (toElement b') (def :: RawElementConfig EventResult t m)
         lazyCreate <- headE $ leftmost
           [ create False (createDhtmlxDateWidgetButton b') <$ domEvent Focus ti
-          , create True (createDhtmlxDateWidgetButton b') <$ click'
+          , create True (createDhtmlxDateWidgetButton b') <$ domEvent Click b''
           ]
         fmap (switch . current) $ widgetHold (return never) lazyCreate
     let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
