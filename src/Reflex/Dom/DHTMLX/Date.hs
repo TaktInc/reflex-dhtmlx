@@ -166,7 +166,7 @@ dhtmlxDatePicker (DatePickerConfig iv sv b wstart attrs visibleOnLoad) = do
         fmap (switch . current) $ widgetHold (return never) lazyCreate
       Just b' | visibleOnLoad -> create True $ createDhtmlxDateWidgetButton b'
       Just b' -> do
-        b'' <- wrapRawElement (toElement b') (def :: RawElementConfig EventResult t m)
+        b'' <- wrapRawElement (toElement b') def
         lazyCreate <- headE $ leftmost
           [ create False (createDhtmlxDateWidgetButton b') <$ domEvent Focus ti
           , create True (createDhtmlxDateWidgetButton b') <$ domEvent Click b''
