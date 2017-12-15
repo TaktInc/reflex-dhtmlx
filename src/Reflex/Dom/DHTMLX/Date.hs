@@ -1,59 +1,37 @@
-{-# LANGUAGE CPP                 #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecursiveDo         #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE RecursiveDo                #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module Reflex.Dom.DHTMLX.Date where
 
 ------------------------------------------------------------------------------
 import           Control.Lens
 import           Control.Monad
-import           Control.Monad.Trans
+import           Control.Monad.IO.Class
 import           Data.Default
 import           Data.Map                (Map)
 import           Data.Text               (Text)
 import qualified Data.Text               as T
 import           Data.Time
-import           GHCJS.DOM.Types hiding (Event, Text)
-#ifdef ghcjs_HOST_OS
-import           GHCJS.Marshal.Pure (pToJSVal)
-import           GHCJS.Foreign.Callback
-import           GHCJS.Types
-#endif
+import           GHCJS.DOM.Element
+import           Language.Javascript.JSaddle hiding (create)
 import           Reflex.Dom hiding (Element, fromJSString)
 import           Reflex.Dom.DHTMLX.Common
 ------------------------------------------------------------------------------
 
 newtype DateWidgetRef = DateWidgetRef
-#ifdef ghcjs_HOST_OS
     { unDateWidgetRef :: JSVal }
-#else
-    { unDateWidgetRef :: () }
-#endif
+  deriving (ToJSVal, MakeObject)
 
 ------------------------------------------------------------------------------
-createDhtmlxDateWidget :: Element -> WeekDay -> IO DateWidgetRef
-#ifdef ghcjs_HOST_OS
-createDhtmlxDateWidget elmt wstart =
-    js_createDhtmlxDateWidget (pToJSVal elmt) (weekDayToInt wstart)
-
-foreign import javascript unsafe
-  "(function(dhtmlXCalendarObject){\
-    var cal = new dhtmlXCalendarObject($1);\
-    cal['setWeekStartDay']($2);\
-    cal['hideTime']();\
-    return cal;\
-   })(window['dhtmlXCalendarObject'])"
-  js_createDhtmlxDateWidget :: JSVal -> Int -> IO DateWidgetRef
-
-#else
-createDhtmlxDateWidget = error "createDhtmlxDateWidget: can only be used with GHCJS"
-#endif
+createDhtmlxDateWidget :: Element -> WeekDay -> JSM DateWidgetRef
+createDhtmlxDateWidget = createDhtmlxDateWidget' Nothing
 
 
 ------------------------------------------------------------------------------
@@ -61,58 +39,36 @@ createDhtmlxDateWidgetButton
     :: Element
     -> Element
     -> WeekDay
-    -> IO DateWidgetRef
-#ifdef ghcjs_HOST_OS
-createDhtmlxDateWidgetButton b elmt wstart =
-    js_createDhtmlxDateWidgetButton (pToJSVal b) (pToJSVal elmt)
-                              (weekDayToInt wstart)
-
-foreign import javascript unsafe
-  "(function(){\
-    var cal = new dhtmlXCalendarObject({input: $2, button: $1});\
-    cal['setWeekStartDay']($3);\
-    cal['hideTime']();\
-    return cal;\
-   })(window['dhtmlXCalendarObject'])"
-  js_createDhtmlxDateWidgetButton :: JSVal -> JSVal -> Int -> IO DateWidgetRef
-
-#else
-createDhtmlxDateWidgetButton =
-    error "createDhtmlxDateWidgetButton: can only be used with GHCJS"
-#endif
+    -> JSM DateWidgetRef
+createDhtmlxDateWidgetButton = createDhtmlxDateWidget' . Just
 
 
 ------------------------------------------------------------------------------
-getDateWidgetValue :: MonadIO m => DateWidgetRef -> m Text
-#ifdef ghcjs_HOST_OS
-getDateWidgetValue a = liftIO $ fromJSString <$> js_getDateWidgetValue a
+createDhtmlxDateWidget'
+    :: Maybe Element
+    -> Element
+    -> WeekDay
+    -> JSM DateWidgetRef
+createDhtmlxDateWidget' btnElmt elmt wstart = do
+    cal <- js_createDhtmlxCalendar btnElmt elmt wstart
+    void $ cal ^. js0 "hideTime"
+    return $ DateWidgetRef cal
 
-foreign import javascript unsafe
-  "(function(){ return $1['getDate'](true); })()"
-  js_getDateWidgetValue :: DateWidgetRef -> IO JSString
 
-#else
-getDateWidgetValue = error "getDateWidgetValue: can only be used with GHCJS"
-#endif
+------------------------------------------------------------------------------
+getDateWidgetValue :: MonadJSM m => DateWidgetRef -> m Text
+getDateWidgetValue a = liftJSM $ valToText =<< a ^. js1 "getDate" True
+
 
 ------------------------------------------------------------------------------
 dateWidgetUpdates
-    :: (TriggerEvent t m, MonadIO m)
+    :: (TriggerEvent t m, MonadJSM m)
     => DateWidgetRef
     -> m (Event t Text)
-#ifdef ghcjs_HOST_OS
 dateWidgetUpdates cal = do
     (event, trigger) <- newTriggerEvent
-    jscb <- liftIO $ asyncCallback $ trigger =<< getDateWidgetValue cal
-    liftIO $ js_addClickListener cal jscb
+    void $ liftJSM $ cal ^. js2 "attachEvent" "onClick" (fun $ \_ _ _ -> liftIO . trigger =<< getDateWidgetValue cal)
     return event
-
-foreign import javascript unsafe
-  "(function(){ $1['attachEvent']('onClick', $2); })()"
-  js_addClickListener :: DateWidgetRef -> Callback (IO ()) -> IO ()
-#else
-dateWidgetUpdates = error "dateWidgetUpdates: can only be used with GHCJS"
-#endif
 
 
 ------------------------------------------------------------------------------
@@ -156,7 +112,7 @@ dhtmlxDatePicker (DatePickerConfig iv sv b wstart attrs visibleOnLoad) = do
       & textInputConfig_setValue .~ fmap formatter sv
     let dateEl = toElement $ _textInput_element ti
     let create p f = do
-          calRef <- liftIO $ f dateEl wstart
+          calRef <- liftJSM $ f dateEl wstart
           when p $ dateWidgetShow $ unDateWidgetRef calRef
           dateWidgetUpdates calRef
     ups <- case b of

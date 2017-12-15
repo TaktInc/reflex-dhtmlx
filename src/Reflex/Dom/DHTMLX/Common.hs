@@ -1,10 +1,9 @@
-{-# LANGUAGE CPP #-}
 module Reflex.Dom.DHTMLX.Common where
 
-#ifdef ghcjs_HOST_OS
-import Control.Monad.IO.Class
-import GHCJS.Types
-#endif
+import Control.Monad
+import Control.Lens
+import GHCJS.DOM.Element
+import Language.Javascript.JSaddle
 
 data WeekDay
     = Monday
@@ -21,14 +20,22 @@ data WeekDay
 weekDayToInt :: WeekDay -> Int
 weekDayToInt d = fromEnum d + 1
 
-#ifdef ghcjs_HOST_OS
-dateWidgetShow :: MonadIO m  => JSVal -> m ()
-dateWidgetShow = liftIO . js_dateWidgetShow
+dateWidgetShow :: MonadJSM m  => JSVal -> m ()
+dateWidgetShow dw = liftJSM $ void $ dw ^. js0 "show"
 
-foreign import javascript unsafe
-  "(function(){ $1['show'](); })()"
-  js_dateWidgetShow :: JSVal -> IO ()
-#else
-dateWidgetShow :: Monad m  => a -> m ()
-dateWidgetShow _ = return ()
-#endif
+js_dhtmlXCalendarObject :: MonadJSM m => m JSVal
+js_dhtmlXCalendarObject = liftJSM $ jsg "dhtmlXCalendarObject"
+
+js_createDhtmlxCalendar
+    :: Maybe Element
+    -> Element
+    -> WeekDay
+    -> JSM JSVal
+js_createDhtmlxCalendar btnElmt elmt wstart = do
+    args <- obj
+    (args <# "input") elmt
+    mapM_ (args <# "button") btnElmt
+    calendarObj <- js_dhtmlXCalendarObject
+    cal <- new calendarObj $ pToJSVal elmt
+    void $ cal ^. js1 "setWeekStartDay" (weekDayToInt wstart)
+    return cal
