@@ -1,69 +1,41 @@
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecursiveDo         #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE RecursiveDo                #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module Reflex.Dom.DHTMLX.DateTime where
 
 ------------------------------------------------------------------------------
 import           Control.Lens
 import           Control.Monad
-import           Control.Monad.Trans
+import           Control.Monad.IO.Class
 import           Data.Default
 import           Data.Map                (Map)
 import           Data.Text               (Text)
 import qualified Data.Text               as T
 import           Data.Time
-import           GHCJS.DOM.Types hiding (Event, Text)
-#ifdef ghcjs_HOST_OS
-import           GHCJS.Marshal.Pure (pToJSVal)
-import           GHCJS.Foreign.Callback
-import qualified GHCJS.DOM.Element as Element
-import           GHCJS.DOM.EventM (on)
-import           GHCJS.Types (JSString, JSVal)
-#endif
+import           GHCJS.DOM.Element
+import           Language.Javascript.JSaddle hiding (create)
 import           Reflex.Dom hiding (Element, fromJSString)
 import           Reflex.Dom.DHTMLX.Common
 ------------------------------------------------------------------------------
 
 newtype DateTimeWidgetRef = DateTimeWidgetRef
-#ifdef ghcjs_HOST_OS
-    { unDateTimeWidgetRef :: JSVal }
-#else
-    { unDateTimeWidgetRef :: () }
-#endif
+  { unDateTimeWidgetRef :: JSVal }
+  deriving (ToJSVal, MakeObject)
+
 
 ------------------------------------------------------------------------------
 createDhtmlxDateTimeWidget
     :: Element
     -> WeekDay
     -> MinutesInterval
-    -> IO DateTimeWidgetRef
-#ifdef ghcjs_HOST_OS
-createDhtmlxDateTimeWidget elmt wstart mint =
-    js_createDhtmlxDateTimeWidget (pToJSVal elmt) (weekDayToInt wstart)
-                                  (minutesIntervalToInt mint)
-
-foreign import javascript unsafe
-  "(function(dhtmlXCalendarObject){\
-    var cal = new dhtmlXCalendarObject($1);\
-    cal['setWeekStartDay']($2);\
-    cal['setMinutesInterval']($3);\
-    cal['setDateFormat']('%Y-%m-%d %H:%i');\
-    cal['showTime']();\
-    return cal;\
-   })(window['dhtmlXCalendarObject'])"
-  js_createDhtmlxDateTimeWidget :: JSVal -> Int -> Int -> IO DateTimeWidgetRef
-
-#else
-createDhtmlxDateTimeWidget =
-    error "createDhtmlxDateTimeWidget: can only be used with GHCJS"
-#endif
-
+    -> JSM DateTimeWidgetRef
+createDhtmlxDateTimeWidget = createDhtmlxDateTimeWidget' Nothing
 
 ------------------------------------------------------------------------------
 createDhtmlxDateTimeWidgetButton
@@ -71,62 +43,36 @@ createDhtmlxDateTimeWidgetButton
     -> Element
     -> WeekDay
     -> MinutesInterval
-    -> IO DateTimeWidgetRef
-#ifdef ghcjs_HOST_OS
-createDhtmlxDateTimeWidgetButton b elmt wstart mint =
-    js_createDhtmlxDateTimeWidgetButton (pToJSVal b) (pToJSVal elmt)
-                                        (weekDayToInt wstart)
-                                        (minutesIntervalToInt mint)
-
-foreign import javascript unsafe
-  "(function(dhtmlXCalendarObject){\
-    var cal = new dhtmlXCalendarObject({input: $2, button: $1});\
-    cal['setWeekStartDay']($3);\
-    cal['setMinutesInterval']($4);\
-    cal['setDateFormat']('%Y-%m-%d %H:%i');\
-    cal['showTime']();\
-    return cal;\
-   })(window['dhtmlXCalendarObject'])"
-  js_createDhtmlxDateTimeWidgetButton :: JSVal -> JSVal -> Int -> Int -> IO DateTimeWidgetRef
-
-#else
-createDhtmlxDateTimeWidgetButton = error "createDhtmlxDateTimeWidgetButton: can only be used with GHCJS"
-#endif
-
+    -> JSM DateTimeWidgetRef
+createDhtmlxDateTimeWidgetButton btnElmt = createDhtmlxDateTimeWidget' (Just btnElmt)
 
 ------------------------------------------------------------------------------
-getDateTimeWidgetValue :: MonadIO m => DateTimeWidgetRef -> m Text
-#ifdef ghcjs_HOST_OS
-getDateTimeWidgetValue a = liftIO $ fromJSString <$> js_getDateTimeWidgetValue a
+createDhtmlxDateTimeWidget'
+    :: Maybe Element
+    -> Element
+    -> WeekDay
+    -> MinutesInterval
+    -> JSM DateTimeWidgetRef
+createDhtmlxDateTimeWidget' btnElmt elmt wstart mint = do
+    cal <- js_createDhtmlxCalendar btnElmt elmt wstart
+    void $ cal ^. js1 "setMinutesInterval" (minutesIntervalToInt mint)
+    void $ cal ^. js1 "setDateFormat" "%Y-%m-%d %H:%i"
+    void $ cal ^. js0 "showTime"
+    return $ DateTimeWidgetRef cal
 
-foreign import javascript unsafe
-  "(function(){ return $1['getFormatedDate']('%Y-%m-%d %H:%i'); })()"
-  js_getDateTimeWidgetValue :: DateTimeWidgetRef -> IO JSString
-#else
-getDateTimeWidgetValue = error "getDateTimeWidgetValue: can only be used with GHCJS"
-#endif
+------------------------------------------------------------------------------
+getDateTimeWidgetValue :: MonadJSM m => DateTimeWidgetRef -> m Text
+getDateTimeWidgetValue a = liftJSM $ valToText =<< a ^. js1 "getFormatedDate" "%Y-%m-%d %H:%i"
 
 
 ------------------------------------------------------------------------------
 dateWidgetUpdates
-    :: (TriggerEvent t m, MonadIO m) => DateTimeWidgetRef -> m (Event t Text)
-#ifdef ghcjs_HOST_OS
+    :: (TriggerEvent t m, MonadJSM m) => DateTimeWidgetRef -> m (Event t Text)
 dateWidgetUpdates cal = do
     (event, trigger) <- newTriggerEvent
-    jscb <- liftIO $ asyncCallback $ trigger =<< getDateTimeWidgetValue cal
-    liftIO $ js_addClickListener cal jscb
-    liftIO $ js_addTimeChangeListener cal jscb
+    void $ liftJSM $ cal ^. js2 "attachEvent" "onClick" (fun $ \_ _ _ -> liftIO . trigger =<< getDateTimeWidgetValue cal)
+    void $ liftJSM $ cal ^. js2 "attachEvent" "onTimeChange" (fun $ \_ _ _ -> liftIO . trigger =<< getDateTimeWidgetValue cal)
     return event
-
-foreign import javascript unsafe
-  "(function(){ $1['attachEvent']('onClick', $2); })()"
-  js_addClickListener :: DateTimeWidgetRef -> Callback (IO ()) -> IO ()
-foreign import javascript unsafe
-  "(function(){ $1['attachEvent']('onTimeChange', $2); })()"
-  js_addTimeChangeListener :: DateTimeWidgetRef -> Callback (IO ()) -> IO ()
-#else
-dateWidgetUpdates = error "dateWidgetUpdates: can only be used with GHCJS"
-#endif
 
 data MinutesInterval = Minutes1 | Minutes5 | Minutes10 | Minutes15
   deriving (Eq,Ord,Show,Read,Enum,Bounded)
@@ -183,7 +129,7 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b wstart mint attrs visibleOnLo
           ]
     let dateEl = toElement $ _textInput_element ti
     let create p f = do
-         calRef <- liftIO $ f dateEl wstart mint
+         calRef <- liftJSM $ f dateEl wstart mint
          when p $ dateWidgetShow $ unDateTimeWidgetRef calRef
          dateWidgetUpdates calRef
     ups <- case b of
