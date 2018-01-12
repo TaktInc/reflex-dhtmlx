@@ -36,6 +36,6 @@ js_createDhtmlxCalendar btnElmt elmt wstart = do
     (args <# "input") elmt
     mapM_ (args <# "button") btnElmt
     calendarObj <- js_dhtmlXCalendarObject
-    cal <- new calendarObj $ pToJSVal elmt
+    cal <- new calendarObj $ toJSVal args
     void $ cal ^. js1 "setWeekStartDay" (weekDayToInt wstart)
     return cal
