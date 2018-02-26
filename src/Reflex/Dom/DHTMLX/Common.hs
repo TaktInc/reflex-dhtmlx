@@ -9,6 +9,7 @@ import Data.Default
 import Data.Text (Text)
 import GHCJS.DOM.Element
 import Language.Javascript.JSaddle
+import Reflex.Dom hiding (Element)
 
 data WeekDay
     = Monday
@@ -25,22 +26,9 @@ data WeekDay
 weekDayToInt :: WeekDay -> Int
 weekDayToInt d = fromEnum d + 1
 
-dateWidgetShow :: MonadJSM m  => JSVal -> m ()
+dateWidgetShow :: MonadJSM m  => DhtmlxCalendar -> m ()
 dateWidgetShow dw = liftJSM $ void $ dw ^. js0 "show"
 
-
-js_createDhtmlxCalendar
-    :: Maybe Element
-    -> Element
-    -> WeekDay
-    -> JSM JSVal
-js_createDhtmlxCalendar btnElmt elmt wstart = do
-    args <- obj
-    (args <# "input") elmt
-    mapM_ (args <# "button") btnElmt
-    calendarObj <- js_dhtmlXCalendarObject
-    cal <- new calendarObj $ toJSVal args
-    void $ cal ^. js1 "setWeekStartDay" (weekDayToInt wstart)
 dateWidgetHide :: MonadJSM m  =>  DhtmlxCalendar -> m ()
 dateWidgetHide dw = liftJSM $ void $ dw ^. js0 "hide"
 
@@ -107,6 +95,15 @@ withCalendar config f = do
     postBuild <- getPostBuild
     calE <- performEvent $ liftJSM (createDhtmlxCalendar config) <$ postBuild
     fmap (switch . current) $ widgetHold (return never) $ f <$> calE
+
+data MinutesInterval = Minutes1 | Minutes5 | Minutes10 | Minutes15
+  deriving (Eq,Ord,Show,Read,Enum,Bounded)
+
+minutesIntervalToInt :: MinutesInterval -> Int
+minutesIntervalToInt Minutes1 = 1
+minutesIntervalToInt Minutes5 = 5
+minutesIntervalToInt Minutes10 = 10
+minutesIntervalToInt Minutes15 = 15
 
 data CalendarConfig = CalendarConfig
     { _calendarConfig_parent :: Maybe Element

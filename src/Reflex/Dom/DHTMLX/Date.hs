@@ -16,6 +16,7 @@ import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Default
 import           Data.Map                (Map)
+import           Data.Maybe
 import           Data.Text               (Text)
 import qualified Data.Text               as T
 import           Data.Time
@@ -26,7 +27,7 @@ import           Reflex.Dom.DHTMLX.Common
 ------------------------------------------------------------------------------
 
 newtype DateWidgetRef = DateWidgetRef
-    { unDateWidgetRef :: JSVal }
+    { unDateWidgetRef :: DhtmlxCalendar }
   deriving (ToJSVal, MakeObject)
 
 ------------------------------------------------------------------------------
@@ -50,8 +51,11 @@ createDhtmlxDateWidget'
     -> WeekDay
     -> JSM DateWidgetRef
 createDhtmlxDateWidget' btnElmt elmt wstart = do
-    cal <- js_createDhtmlxCalendar btnElmt elmt wstart
-    void $ cal ^. js0 "hideTime"
+    cal <- createDhtmlxCalendar $ def
+      & calendarConfig_button .~ btnElmt
+      & calendarConfig_input .~ Just elmt
+      & calendarConfig_weekStart .~ wstart
+    hideTime cal
     return $ DateWidgetRef cal
 
 
@@ -76,6 +80,7 @@ data DatePickerConfig t = DatePickerConfig
     { _datePickerConfig_initialValue  :: Maybe Day
     , _datePickerConfig_setValue      :: Event t (Maybe Day)
     , _datePickerConfig_button        :: Maybe Element
+    , _datePickerConfig_parent        :: Maybe Element
     , _datePickerConfig_weekStart     :: WeekDay
     , _datePickerConfig_attributes    :: Dynamic t (Map Text Text)
     , _datePickerConfig_visibleOnLoad :: Bool
@@ -84,7 +89,7 @@ data DatePickerConfig t = DatePickerConfig
 makeLenses ''DatePickerConfig
 
 instance Reflex t => Default (DatePickerConfig t) where
-    def = DatePickerConfig Nothing never Nothing Sunday mempty False
+    def = DatePickerConfig Nothing never Nothing Nothing Sunday mempty False
 
 instance HasAttributes (DatePickerConfig t) where
   type Attrs (DatePickerConfig t) = Dynamic t (Map Text Text)
@@ -103,7 +108,7 @@ dhtmlxDatePicker
     :: forall t m. MonadWidget t m
     => DatePickerConfig t
     -> m (DatePicker t)
-dhtmlxDatePicker (DatePickerConfig iv sv b wstart attrs visibleOnLoad) = do
+dhtmlxDatePicker (DatePickerConfig iv sv b p wstart attrs visibleOnLoad) = do
     let fmt = "%Y-%m-%d"
         formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt)
     ti <- textInput $ def
@@ -111,26 +116,19 @@ dhtmlxDatePicker (DatePickerConfig iv sv b wstart attrs visibleOnLoad) = do
       & textInputConfig_initialValue .~ formatter iv
       & textInputConfig_setValue .~ fmap formatter sv
     let dateEl = toElement $ _textInput_element ti
-    let create p f = do
-          calRef <- liftJSM $ f dateEl wstart
-          when p $ dateWidgetShow $ unDateWidgetRef calRef
-          dateWidgetUpdates calRef
-    ups <- case b of
-      Nothing | visibleOnLoad -> create True createDhtmlxDateWidget
-      Nothing -> do
-        lazyCreate <- headE $ create False createDhtmlxDateWidget <$ domEvent Focus ti
-        fmap (switch . current) $ widgetHold (return never) lazyCreate
-      Just b' | visibleOnLoad -> create True $ createDhtmlxDateWidgetButton b'
-      Just b' -> do
-        b'' <- wrapRawElement (toElement b') def
-        lazyCreate <- headE $ leftmost
-          [ create False (createDhtmlxDateWidgetButton b') <$ domEvent Focus ti
-          , create True (createDhtmlxDateWidgetButton b') <$ domEvent Click b''
-          ]
-        fmap (switch . current) $ widgetHold (return never) lazyCreate
+        config = def
+          & calendarConfig_button .~ b
+          & calendarConfig_parent .~ p
+          & calendarConfig_input .~ Just dateEl
+          & calendarConfig_weekStart .~ wstart
+    ups <- withCalendar config $ \cal -> do
+      hideTime cal
+      setDate cal $ formatter iv
+      when (isJust p) $ setPosition cal 0 0
+      when visibleOnLoad $ dateWidgetShow cal
+      ups <- dateWidgetUpdates $ DateWidgetRef cal
+      performEvent_ $ dateWidgetHide cal <$ ups
+      return ups
     let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
-    fmap DatePicker $ holdDyn iv $ leftmost
-      [ parser <$> _textInput_input ti
-      , parser <$> ups
-      , sv
-      ]
+    fmap DatePicker $ holdDyn iv $ parser <$> leftmost [_textInput_input ti, ups]
+
