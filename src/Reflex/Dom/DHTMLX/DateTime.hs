@@ -55,7 +55,6 @@ createDhtmlxDateTimeWidgetButton btnElmt = createDhtmlxDateTimeWidget' (Just btn
 
 dateTimeFormat :: String
 dateTimeFormat = "%Y-%m-%d %H:%M"
--- "%Y-%m-%d %H:%M"
 
 
 calendarsDateTimeFormat :: String
@@ -165,11 +164,5 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
       return ups'
     let parser   = parseTimeM True defaultTimeLocale dateTimeFormat . T.unpack
         evParsed = parser <$> leftmost [_textInput_input ti, ups]
-    performEvent_ $ liftIO . putStrLn . ("sv  : " ++) . show <$> sv
-    performEvent_ $ liftIO . putStrLn . ("fsv : " ++) . show . formatter <$> sv
-    performEvent_ $ liftIO . putStrLn . ("ups : " ++) . show <$> ups
-    performEvent_ $ liftIO . putStrLn . ("pups: " ++) . show . parser <$> ups
-    performEvent_ $ liftIO . putStrLn . ("ti  : " ++) . show <$> _textInput_input ti
-    performEvent_ $ liftIO . putStrLn . ("=   : " ++) . show <$> evParsed
-    dVal    <- holdDyn iv evParsed
+    dVal <- holdDyn iv evParsed
     return $ DateTimePicker dVal

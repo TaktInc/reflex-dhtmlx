@@ -4,7 +4,6 @@
 module Reflex.Dom.DHTMLX.Common where
 
 import Control.Monad
-import Control.Monad.IO.Class (MonadIO(..))
 import Control.Lens
 import Data.Default
 import Data.Text (Text)
@@ -77,7 +76,6 @@ createDhtmlxCalendar
   :: CalendarConfig
   -> JSM DhtmlxCalendar
 createDhtmlxCalendar config = do
-    liftIO $ putStrLn "new calendar"
     let createCal v = DhtmlxCalendar <$> new js_dhtmlXCalendarObject v
     cal <- case _calendarConfig_parent config of
       Nothing -> do
