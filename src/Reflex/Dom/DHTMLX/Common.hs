@@ -47,6 +47,9 @@ setDateFormat cal fmt = liftJSM $ void $ cal ^. js1 "setDateFormat" fmt
 setDate :: MonadJSM m => DhtmlxCalendar -> Text -> m ()
 setDate cal date = liftJSM $ void $ cal ^. js1 "setDate" date
 
+setFormattedDate :: MonadJSM m => DhtmlxCalendar -> Text -> Text -> m ()
+setFormattedDate cal fmt date = liftJSM $ void $ cal ^. js2 "setFormatedDate" fmt date
+
 showTime :: MonadJSM m => DhtmlxCalendar -> m ()
 showTime cal = liftJSM $ void $ cal ^. js0 "showTime"
 
@@ -117,4 +120,3 @@ instance Default CalendarConfig where
   def = CalendarConfig Nothing Nothing Nothing Monday Minutes1
 
 makeLenses ''CalendarConfig
-

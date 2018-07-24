@@ -131,4 +131,3 @@ dhtmlxDatePicker (DatePickerConfig iv sv b p wstart attrs visibleOnLoad) = do
       return ups
     let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
     fmap DatePicker $ holdDyn iv $ parser <$> leftmost [_textInput_input ti, ups]
-

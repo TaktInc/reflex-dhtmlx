@@ -52,6 +52,19 @@ createDhtmlxDateTimeWidgetButton
     -> JSM DateTimeWidgetRef
 createDhtmlxDateTimeWidgetButton btnElmt = createDhtmlxDateTimeWidget' (Just btnElmt)
 
+
+dateTimeFormat :: String
+dateTimeFormat = "%Y-%m-%d %H:%M"
+
+
+calendarsDateTimeFormat :: String
+calendarsDateTimeFormat = "%Y-%m-%d %H:%i"
+
+
+dateTimeFormatter :: UTCTime -> String
+dateTimeFormatter = formatTime defaultTimeLocale dateTimeFormat
+
+
 ------------------------------------------------------------------------------
 createDhtmlxDateTimeWidget'
     :: Maybe Element
@@ -66,13 +79,14 @@ createDhtmlxDateTimeWidget' btnElmt elmt wstart mint = do
           & calendarConfig_weekStart .~ wstart
     cal <- createDhtmlxCalendar config
     setMinutesInterval cal mint
-    setDateFormat cal $ T.pack "%Y-%m-%d %H:%i"
+    setDateFormat cal $ T.pack calendarsDateTimeFormat
     showTime cal
     return $ DateTimeWidgetRef cal
 
 ------------------------------------------------------------------------------
 getDateTimeWidgetValue :: MonadJSM m => DateTimeWidgetRef -> m Text
-getDateTimeWidgetValue a = liftJSM $ valToText =<< a ^. js1 "getFormatedDate" "%Y-%m-%d %H:%i"
+getDateTimeWidgetValue a
+  = liftJSM $ valToText =<< a ^. js1 "getFormatedDate" calendarsDateTimeFormat
 
 
 ------------------------------------------------------------------------------
@@ -80,8 +94,15 @@ dateWidgetUpdates
     :: (TriggerEvent t m, MonadJSM m) => DateTimeWidgetRef -> m (Event t Text)
 dateWidgetUpdates cal = do
     (event, trigger) <- newTriggerEvent
-    void $ liftJSM $ cal ^. js2 "attachEvent" "onClick" (fun $ \_ _ _ -> liftIO . trigger =<< getDateTimeWidgetValue cal)
-    void $ liftJSM $ cal ^. js2 "attachEvent" "onTimeChange" (fun $ \_ _ _ -> liftIO . trigger =<< getDateTimeWidgetValue cal)
+    let onClickCB = fun $ \_ _ _ -> do
+          txt <- getDateTimeWidgetValue cal
+          liftIO $ trigger txt
+    void $ liftJSM $ cal ^. js2 "attachEvent" "onClick" onClickCB
+
+    let onTimeChangeCB = fun $ \_ _ _ -> do
+          txt <- getDateTimeWidgetValue cal
+          liftIO $ trigger txt
+    void $ liftJSM $ cal ^. js2 "attachEvent" "onTimeChange" onTimeChangeCB
     return event
 
 ------------------------------------------------------------------------------
@@ -119,12 +140,13 @@ dhtmlxDateTimePicker
     => DateTimePickerConfig t
     -> m (DateTimePicker t)
 dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad) = mdo
-    let fmt = "%Y-%m-%d %H:%M"
-        formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt)
+    let formatter = T.pack . maybe "" dateTimeFormatter
+        ivTxt     = formatter iv
+        evVal     = leftmost [formatter <$> sv, ups]
     ti <- textInput $ def
       & attributes .~ attrs
-      & textInputConfig_initialValue .~ formatter iv
-      & textInputConfig_setValue .~ leftmost [fmap formatter sv, ups]
+      & textInputConfig_initialValue .~ ivTxt
+      & textInputConfig_setValue .~ evVal
     let dateEl = toElement $ _textInput_element ti
         config = def
             & calendarConfig_button .~ b
@@ -137,6 +159,10 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
       when (isJust p) $ setPosition cal 0 0
       ups' <- dateWidgetUpdates $ DateTimeWidgetRef cal
       performEvent_ $ dateWidgetHide cal <$ ups'
+      performEvent_ $ ffor (fmapMaybe (fmap (T.pack . dateTimeFormatter)) sv) $
+        setFormattedDate cal $ T.pack calendarsDateTimeFormat
       return ups'
-    let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
-    fmap DateTimePicker $ holdDyn iv $ parser <$> leftmost [_textInput_input ti, ups]
+    let parser   = parseTimeM True defaultTimeLocale dateTimeFormat . T.unpack
+        evParsed = parser <$> leftmost [_textInput_input ti, ups]
+    dVal <- holdDyn iv evParsed
+    return $ DateTimePicker dVal
