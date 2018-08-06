@@ -1,11 +1,12 @@
 (import ./reflex-platform {}).project ({ pkgs, ... }: {
   useWarp = true;
   packages = {
-    dhtmlx = ../reflex-dhtmlx;
+    reflex-dhtmlx = ./reflex-dhtmlx;
+    reflex-dhtmlx-example = ./reflex-dhtmlx-example;
   };
 
   shells = {
-    ghc = ["dhtmlx"];
-    ghcjs = ["dhtmlx"];
+    ghc = ["reflex-dhtmlx" "reflex-dhtmlx-example"];
+    ghcjs = ["reflex-dhtmlx" "reflex-dhtmlx-example"];
   };
 })

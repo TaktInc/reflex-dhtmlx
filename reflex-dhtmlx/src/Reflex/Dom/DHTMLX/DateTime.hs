@@ -26,7 +26,7 @@ import qualified Data.Text               as T
 import           Data.Time
 import           GHCJS.DOM.Element
 import           Language.Javascript.JSaddle hiding (create)
-import           Reflex.Dom hiding (Element, fromJSString)
+import           Reflex.Dom.Core hiding (Element, fromJSString)
 import           Reflex.Dom.DHTMLX.Common
 ------------------------------------------------------------------------------
 

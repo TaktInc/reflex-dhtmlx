@@ -9,7 +9,7 @@ import Data.Default
 import Data.Text (Text)
 import GHCJS.DOM.Element
 import Language.Javascript.JSaddle
-import Reflex.Dom hiding (Element)
+import Reflex.Dom.Core hiding (Element)
 
 data WeekDay
     = Monday
