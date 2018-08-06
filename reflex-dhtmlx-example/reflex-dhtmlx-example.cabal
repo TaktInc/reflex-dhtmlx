@@ -1,0 +1,32 @@
+name:                reflex-dhtmlx-example
+version:             0.1
+synopsis:            Example application for reflex-dhtmlx
+-- description:
+license:             BSD3
+license-file:        ../LICENSE
+author:              Doug Beardsley
+maintainer:          info@takt.com
+copyright:           Takt Inc
+category:            Web
+build-type:          Simple
+cabal-version:       >=1.10
+
+
+executable example
+  buildable: True
+  main-is:           Main.hs
+  hs-source-dirs:    src
+  default-language:  Haskell2010
+
+  build-depends:
+      base          >= 4.9  && < 4.10
+    , jsaddle       >= 0.9.3 && < 0.10
+    , jsaddle-warp
+    , reflex        >= 0.5  && < 0.6
+    , reflex-dom    >= 0.4  && < 0.5
+    , reflex-dhtmlx
+    , text          >= 1.2  && < 1.3
+
+source-repository head
+  type: git
+  location: https://github.com/TaktInc/reflex-dhtmlx
