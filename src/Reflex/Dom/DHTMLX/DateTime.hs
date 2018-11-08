@@ -1,5 +1,5 @@
-{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE RankNTypes                 #-}
@@ -19,14 +19,14 @@ import           Control.Lens
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Default
+import           Data.Map                    (Map)
 import           Data.Maybe
-import           Data.Map                (Map)
-import           Data.Text               (Text)
-import qualified Data.Text               as T
+import           Data.Text                   (Text)
+import qualified Data.Text                   as T
 import           Data.Time
 import           GHCJS.DOM.Element
 import           Language.Javascript.JSaddle hiding (create)
-import           Reflex.Dom hiding (Element, fromJSString)
+import           Reflex.Dom                  hiding (Element, fromJSString)
 import           Reflex.Dom.DHTMLX.Common
 ------------------------------------------------------------------------------
 
@@ -62,7 +62,7 @@ createDhtmlxDateTimeWidget'
 createDhtmlxDateTimeWidget' btnElmt elmt wstart mint = do
     let config = def
           & calendarConfig_button .~ btnElmt
-          & calendarConfig_input .~ Just elmt
+          & calendarConfig_input ?~ elmt
           & calendarConfig_weekStart .~ wstart
     cal <- createDhtmlxCalendar config
     setMinutesInterval cal mint
@@ -119,8 +119,9 @@ dhtmlxDateTimePicker
     => DateTimePickerConfig t
     -> m (DateTimePicker t)
 dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad) = mdo
+    zone <- liftIO getCurrentTimeZone
     let fmt = "%Y-%m-%d %H:%M"
-        formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt)
+        formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt . utcToZonedTime zone)
     ti <- textInput $ def
       & attributes .~ attrs
       & textInputConfig_initialValue .~ formatter iv
@@ -129,7 +130,7 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
         config = def
             & calendarConfig_button .~ b
             & calendarConfig_parent .~ p
-            & calendarConfig_input .~ Just dateEl
+            & calendarConfig_input ?~ dateEl
             & calendarConfig_minutesInterval .~ mint
             & calendarConfig_weekStart .~ wstart
     ups <- withCalendar config $ \cal -> do
@@ -138,5 +139,5 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
       ups' <- dateWidgetUpdates $ DateTimeWidgetRef cal
       performEvent_ $ dateWidgetHide cal <$ ups'
       return ups'
-    let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
+    let parser = fmap zonedTimeToUTC . parseTimeM True defaultTimeLocale fmt . T.unpack
     fmap DateTimePicker $ holdDyn iv $ parser <$> leftmost [_textInput_input ti, ups]
