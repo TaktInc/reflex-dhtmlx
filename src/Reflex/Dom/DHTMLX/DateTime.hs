@@ -94,12 +94,13 @@ data DateTimePickerConfig t = DateTimePickerConfig
     , _dateTimePickerConfig_minutesInterval :: MinutesInterval
     , _dateTimePickerConfig_attributes      :: Dynamic t (Map Text Text)
     , _dateTimePickerConfig_visibleOnLoad   :: Bool
+    , _dateTimePickerConfig_timeZone        :: TimeZone
     }
 
 makeLenses ''DateTimePickerConfig
 
 instance Reflex t => Default (DateTimePickerConfig t) where
-    def = DateTimePickerConfig Nothing never Nothing Nothing Sunday Minutes1 mempty False
+    def = DateTimePickerConfig Nothing never Nothing Nothing Sunday Minutes1 mempty False utc
 
 instance HasAttributes (DateTimePickerConfig t) where
   type Attrs (DateTimePickerConfig t) = Dynamic t (Map Text Text)
@@ -118,8 +119,7 @@ dhtmlxDateTimePicker
     :: forall t m. MonadWidget t m
     => DateTimePickerConfig t
     -> m (DateTimePicker t)
-dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad) = mdo
-    zone <- liftIO getCurrentTimeZone
+dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad zone) = mdo
     let fmt = "%Y-%m-%d %H:%M"
         formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt . utcToZonedTime zone)
     ti <- textInput $ def
