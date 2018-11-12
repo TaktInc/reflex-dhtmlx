@@ -28,13 +28,6 @@ import           GHCJS.DOM.Element
 import           Language.Javascript.JSaddle hiding (create)
 import           Reflex.Dom                  hiding (Element, fromJSString)
 import           Reflex.Dom.DHTMLX.Common
-
-
-import           Debug.Trace                 (trace)
-
-tracy :: Show a => String -> a -> a
-tracy x a = trace (x ++ " " ++ show a) a
-
 ------------------------------------------------------------------------------
 
 newtype DateTimeWidgetRef = DateTimeWidgetRef
