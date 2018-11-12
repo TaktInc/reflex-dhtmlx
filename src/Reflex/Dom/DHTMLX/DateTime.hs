@@ -28,6 +28,13 @@ import           GHCJS.DOM.Element
 import           Language.Javascript.JSaddle hiding (create)
 import           Reflex.Dom                  hiding (Element, fromJSString)
 import           Reflex.Dom.DHTMLX.Common
+
+
+import           Debug.Trace                 (trace)
+
+tracy :: Show a => String -> a -> a
+tracy x a = trace (x ++ " " ++ show a) a
+
 ------------------------------------------------------------------------------
 
 newtype DateTimeWidgetRef = DateTimeWidgetRef
@@ -119,13 +126,15 @@ dhtmlxDateTimePicker
     :: forall t m. MonadWidget t m
     => DateTimePickerConfig t
     -> m (DateTimePicker t)
-dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad zone) = mdo
+dhtmlxDateTimePicker (DateTimePickerConfig (iv :: Maybe UTCTime) sv b p wstart mint attrs visibleOnLoad zone) = mdo
+
     let fmt = "%Y-%m-%d %H:%M"
-        formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt . utcToZonedTime zone)
+        formatter = T.pack . maybe ""
+          (formatTime defaultTimeLocale fmt . utcToZonedTime zone )
     ti <- textInput $ def
       & attributes .~ attrs
       & textInputConfig_initialValue .~ formatter iv
-      & textInputConfig_setValue .~ leftmost [fmap formatter sv, ups]
+      & textInputConfig_setValue .~ leftmost [formatter <$> sv, formatter . parser <$> ups]
     let dateEl = toElement $ _textInput_element ti
         config = def
             & calendarConfig_button .~ b
@@ -139,5 +148,6 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
       ups' <- dateWidgetUpdates $ DateTimeWidgetRef cal
       performEvent_ $ dateWidgetHide cal <$ ups'
       return ups'
-    let parser = fmap zonedTimeToUTC . parseTimeM True defaultTimeLocale fmt . T.unpack
+    let parser = fmap (zonedTimeToUTC . (\dd -> dd {zonedTimeZone = zone}))
+               . parseTimeM True defaultTimeLocale fmt . T.unpack
     fmap DateTimePicker $ holdDyn iv $ parser <$> leftmost [_textInput_input ti, ups]
