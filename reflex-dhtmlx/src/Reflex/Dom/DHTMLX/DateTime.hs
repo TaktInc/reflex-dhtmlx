@@ -75,7 +75,7 @@ createDhtmlxDateTimeWidget'
 createDhtmlxDateTimeWidget' btnElmt elmt wstart mint = do
     let config = def
           & calendarConfig_button .~ btnElmt
-          & calendarConfig_input .~ Just elmt
+          & calendarConfig_input ?~ elmt
           & calendarConfig_weekStart .~ wstart
     cal <- createDhtmlxCalendar config
     setMinutesInterval cal mint
@@ -115,12 +115,13 @@ data DateTimePickerConfig t = DateTimePickerConfig
     , _dateTimePickerConfig_minutesInterval :: MinutesInterval
     , _dateTimePickerConfig_attributes      :: Dynamic t (Map Text Text)
     , _dateTimePickerConfig_visibleOnLoad   :: Bool
+    , _dateTimePickerConfig_timeZone        :: TimeZone
     }
 
 makeLenses ''DateTimePickerConfig
 
 instance Reflex t => Default (DateTimePickerConfig t) where
-    def = DateTimePickerConfig Nothing never Nothing Nothing Sunday Minutes1 mempty False
+    def = DateTimePickerConfig Nothing never Nothing Nothing Sunday Minutes1 mempty False utc
 
 instance HasAttributes (DateTimePickerConfig t) where
   type Attrs (DateTimePickerConfig t) = Dynamic t (Map Text Text)
@@ -139,19 +140,19 @@ dhtmlxDateTimePicker
     :: forall t m. MonadWidget t m
     => DateTimePickerConfig t
     -> m (DateTimePicker t)
-dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad) = mdo
-    let formatter = T.pack . maybe "" dateTimeFormatter
+dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad zone) = mdo
+    let formatter = T.pack . maybe ""
+          (formatTime defaultTimeLocale dateTimeFormat . utcToZonedTime zone)
         ivTxt     = formatter iv
-        evVal     = leftmost [formatter <$> sv, ups]
     ti <- textInput $ def
       & attributes .~ attrs
       & textInputConfig_initialValue .~ ivTxt
-      & textInputConfig_setValue .~ evVal
+      & textInputConfig_setValue .~ leftmost [formatter <$> sv, formatter . parser <$> ups]
     let dateEl = toElement $ _textInput_element ti
         config = def
             & calendarConfig_button .~ b
             & calendarConfig_parent .~ p
-            & calendarConfig_input .~ Just dateEl
+            & calendarConfig_input ?~ dateEl
             & calendarConfig_minutesInterval .~ mint
             & calendarConfig_weekStart .~ wstart
     ups <- withCalendar config $ \cal -> do
@@ -162,7 +163,8 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
       performEvent_ $ ffor (fmapMaybe (fmap (T.pack . dateTimeFormatter)) sv) $
         setFormattedDate cal $ T.pack calendarsDateTimeFormat
       return ups'
-    let parser   = parseTimeM True defaultTimeLocale dateTimeFormat . T.unpack
+    let parser   = fmap (zonedTimeToUTC . (\dd -> dd {zonedTimeZone = zone}))
+                 . parseTimeM True defaultTimeLocale dateTimeFormat . T.unpack
         evParsed = parser <$> leftmost [_textInput_input ti, ups]
     dVal <- holdDyn iv evParsed
     return $ DateTimePicker dVal
