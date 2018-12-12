@@ -10,22 +10,30 @@ import qualified Data.Text                         as T
 import           Data.Time.LocalTime
 import           Language.Javascript.JSaddle.Types (JSM, liftJSM)
 import           Reflex.Dom
+import           Reflex.Dom.DHTMLX.Date
 import           Reflex.Dom.DHTMLX.DateTime
 
 
 app :: MonadWidget t m => m ()
 app = do
   zone <- liftJSM getCurrentTimeZone
-  el "h1" $ text "Date Widget Test"
-  rec date <- dhtmlxDateTimePicker $ def
-                & dateTimePickerConfig_button .~ Just (_element_raw e)
-                & dateTimePickerConfig_timeZone .~ zone
-      (e,_) <- el' "button" $ text "cal"
-  el "div" $
-    dynText $ maybe "Nothing" (T.pack . show) <$> value date
-  el "span" $
-    text $ T.pack (show zone)
-  return ()
+
+  el "section" $ do
+    el "h2" $ text "Date Time Widget Test"
+    rec date <- dhtmlxDateTimePicker $ def
+                  & dateTimePickerConfig_button .~ Just (_element_raw e)
+                  & dateTimePickerConfig_timeZone .~ zone
+        (e,_) <- el' "button" $ text "cal"
+    el "div" . dynText $ T.pack . ("selected time is: " ++) . show <$> value date
+    el "span" . text . T.pack $ "your time zone is: " ++ show zone
+
+  el "section" $ do
+    el "h2" $ text "Date Widget Test"
+    rec date <- dhtmlxDatePicker $ def
+                  & datePickerConfig_button .~ Just (_element_raw e)
+        (e,_) <- el' "button" $ text "cal"
+    el "div" . dynText $ T.pack . ("selected time is: " ++) . show <$> value date
+
 
 {-|
    It's important that we do not use @mainWidget@ here.

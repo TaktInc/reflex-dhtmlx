@@ -9,7 +9,17 @@
 {-# LANGUAGE TypeFamilies               #-}
 
 module Reflex.Dom.DHTMLX.DateTime
-  ( module Reflex.Dom.DHTMLX.DateTime
+  ( dhtmlxDateTimePicker
+  , DateTimePickerConfig (..)
+  , dateTimePickerConfig_initialValue
+  , dateTimePickerConfig_setValue
+  , dateTimePickerConfig_button
+  , dateTimePickerConfig_parent
+  , dateTimePickerConfig_weekStart
+  , dateTimePickerConfig_minutesInterval
+  , dateTimePickerConfig_attributes
+  , dateTimePickerConfig_visibleOnLoad
+  , dateTimePickerConfig_timeZone
   , MinutesInterval (..)
   , minutesIntervalToInt
   ) where
@@ -27,30 +37,24 @@ import           Data.Time
 import           GHCJS.DOM.Element
 import           Language.Javascript.JSaddle hiding (create)
 import           Reflex.Dom.Core             hiding (Element, fromJSString)
-import           Reflex.Dom.DHTMLX.Common
+import           Reflex.Dom.DHTMLX.Common    (DhtmlxCalendar,
+                                              MinutesInterval (..),
+                                              WeekDay (..),
+                                              calendarConfig_button,
+                                              calendarConfig_input,
+                                              calendarConfig_minutesInterval,
+                                              calendarConfig_parent,
+                                              calendarConfig_weekStart,
+                                              dateWidgetHide, dateWidgetShow,
+                                              minutesIntervalToInt,
+                                              setDateFormat, setFormattedDate,
+                                              setMinutesInterval, setPosition,
+                                              withCalendar)
+
 ------------------------------------------------------------------------------
 
-newtype DateTimeWidgetRef = DateTimeWidgetRef
-  { unDateTimeWidgetRef :: DhtmlxCalendar }
+newtype DateTimeWidgetRef = DateTimeWidgetRef DhtmlxCalendar
   deriving (ToJSVal, MakeObject)
-
-
-------------------------------------------------------------------------------
-createDhtmlxDateTimeWidget
-    :: Element
-    -> WeekDay
-    -> MinutesInterval
-    -> JSM DateTimeWidgetRef
-createDhtmlxDateTimeWidget = createDhtmlxDateTimeWidget' Nothing
-
-------------------------------------------------------------------------------
-createDhtmlxDateTimeWidgetButton
-    :: Element
-    -> Element
-    -> WeekDay
-    -> MinutesInterval
-    -> JSM DateTimeWidgetRef
-createDhtmlxDateTimeWidgetButton btnElmt = createDhtmlxDateTimeWidget' (Just btnElmt)
 
 
 dateTimeFormat :: String
@@ -64,24 +68,6 @@ calendarsDateTimeFormat = "%Y-%m-%d %H:%i"
 dateTimeFormatter :: UTCTime -> String
 dateTimeFormatter = formatTime defaultTimeLocale dateTimeFormat
 
-
-------------------------------------------------------------------------------
-createDhtmlxDateTimeWidget'
-    :: Maybe Element
-    -> Element
-    -> WeekDay
-    -> MinutesInterval
-    -> JSM DateTimeWidgetRef
-createDhtmlxDateTimeWidget' btnElmt elmt wstart mint = do
-    let config = def
-          & calendarConfig_button .~ btnElmt
-          & calendarConfig_input ?~ elmt
-          & calendarConfig_weekStart .~ wstart
-    cal <- createDhtmlxCalendar config
-    setMinutesInterval cal mint
-    setDateFormat cal $ T.pack calendarsDateTimeFormat
-    showTime cal
-    return $ DateTimeWidgetRef cal
 
 ------------------------------------------------------------------------------
 getDateTimeWidgetValue :: MonadJSM m => DateTimeWidgetRef -> m Text
@@ -158,10 +144,12 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
     ups <- withCalendar config $ \cal -> do
       when visibleOnLoad (dateWidgetShow cal)
       when (isJust p) $ setPosition cal 0 0
+      setMinutesInterval cal mint
+      setDateFormat cal $ T.pack calendarsDateTimeFormat
       ups' <- dateWidgetUpdates $ DateTimeWidgetRef cal
       performEvent_ $ dateWidgetHide cal <$ ups'
       performEvent_ $ ffor (fmapMaybe (fmap (T.pack . dateTimeFormatter)) sv) $
-        setFormattedDate cal $ T.pack calendarsDateTimeFormat
+         setFormattedDate cal $ T.pack dateTimeFormat
       return ups'
     let parser   = fmap (zonedTimeToUTC . (\dd -> dd {zonedTimeZone = zone}))
                  . parseTimeM True defaultTimeLocale dateTimeFormat . T.unpack

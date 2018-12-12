@@ -1,13 +1,29 @@
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell            #-}
-module Reflex.Dom.DHTMLX.Common where
+module Reflex.Dom.DHTMLX.Common
+  ( DhtmlxCalendar
+  , WeekDay(..)
+  , MinutesInterval (..)
+  , calendarConfig_button
+  , calendarConfig_input
+  , calendarConfig_minutesInterval
+  , calendarConfig_parent
+  , calendarConfig_weekStart
+  , dateWidgetHide, dateWidgetShow
+  , setMinutesInterval
+  , setPosition
+  , withCalendar
+  , showTime, hideTime
+  , setDate
+  , setFormattedDate, setDateFormat
+  , minutesIntervalToInt
+  ) where
 
 import           Control.Lens
 import           Control.Monad
 import           Data.Default
-import           Data.Maybe                  (isJust)
-import           Data.Text                   (Text, pack)
+import           Data.Text                   (Text)
 import           GHCJS.DOM.Element
 import           Language.Javascript.JSaddle
 import           Reflex.Dom.Core             hiding (Element)
@@ -70,7 +86,7 @@ buildInputArgs input btn = liftJSM $ do
 js_dhtmlXCalendarObject :: JSM JSVal
 js_dhtmlXCalendarObject = jsg "dhtmlXCalendarObject"
 
-newtype DhtmlxCalendar = DhtmlxCalendar { unDhtmlxCalendar :: JSVal }
+newtype DhtmlxCalendar = DhtmlxCalendar JSVal
   deriving (ToJSVal, MakeObject)
 
 createDhtmlxCalendar
