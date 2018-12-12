@@ -1,5 +1,5 @@
-{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE RankNTypes                 #-}
@@ -19,14 +19,14 @@ import           Control.Lens
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Default
+import           Data.Map                    (Map)
 import           Data.Maybe
-import           Data.Map                (Map)
-import           Data.Text               (Text)
-import qualified Data.Text               as T
+import           Data.Text                   (Text)
+import qualified Data.Text                   as T
 import           Data.Time
 import           GHCJS.DOM.Element
 import           Language.Javascript.JSaddle hiding (create)
-import           Reflex.Dom.Core hiding (Element, fromJSString)
+import           Reflex.Dom.Core             hiding (Element, fromJSString)
 import           Reflex.Dom.DHTMLX.Common
 ------------------------------------------------------------------------------
 

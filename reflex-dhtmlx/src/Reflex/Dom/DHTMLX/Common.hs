@@ -1,15 +1,16 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell            #-}
 module Reflex.Dom.DHTMLX.Common where
 
-import Control.Monad
-import Control.Lens
-import Data.Default
-import Data.Text (Text)
-import GHCJS.DOM.Element
-import Language.Javascript.JSaddle
-import Reflex.Dom.Core hiding (Element)
+import           Control.Lens
+import           Control.Monad
+import           Data.Default
+import           Data.Maybe                  (isJust)
+import           Data.Text                   (Text, pack)
+import           GHCJS.DOM.Element
+import           Language.Javascript.JSaddle
+import           Reflex.Dom.Core             hiding (Element)
 
 data WeekDay
     = Monday
@@ -79,8 +80,10 @@ createDhtmlxCalendar config = do
     let createCal v = DhtmlxCalendar <$> new js_dhtmlXCalendarObject v
     cal <- case _calendarConfig_parent config of
       Nothing -> do
-        args <- buildInputArgs (_calendarConfig_input config) (_calendarConfig_button config)
-        createCal (toJSVal args)
+        no <- toJSVal ValUndefined
+        cal <- createCal no
+        attachObj cal (_calendarConfig_input config) (_calendarConfig_button config)
+        return cal
       Just parent -> do
         cal <- createCal (toJSVal parent)
         attachObj cal (_calendarConfig_input config) (_calendarConfig_button config)
@@ -103,16 +106,16 @@ data MinutesInterval = Minutes1 | Minutes5 | Minutes10 | Minutes15
   deriving (Eq,Ord,Show,Read,Enum,Bounded)
 
 minutesIntervalToInt :: MinutesInterval -> Int
-minutesIntervalToInt Minutes1 = 1
-minutesIntervalToInt Minutes5 = 5
+minutesIntervalToInt Minutes1  = 1
+minutesIntervalToInt Minutes5  = 5
 minutesIntervalToInt Minutes10 = 10
 minutesIntervalToInt Minutes15 = 15
 
 data CalendarConfig = CalendarConfig
-    { _calendarConfig_parent :: Maybe Element
-    , _calendarConfig_input  :: Maybe Element
-    , _calendarConfig_button :: Maybe Element
-    , _calendarConfig_weekStart :: WeekDay
+    { _calendarConfig_parent          :: Maybe Element
+    , _calendarConfig_input           :: Maybe Element
+    , _calendarConfig_button          :: Maybe Element
+    , _calendarConfig_weekStart       :: WeekDay
     , _calendarConfig_minutesInterval :: MinutesInterval
     }
 
