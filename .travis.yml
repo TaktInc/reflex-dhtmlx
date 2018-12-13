@@ -1,2 +1,2 @@
 language: nix
-script: nix-build
+script: nix build
