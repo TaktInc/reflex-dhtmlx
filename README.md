@@ -1,5 +1,7 @@
 # reflex-dhtmlx
 
+[![Build Status](https://travis-ci.org/TaktInc/reflex-dhtmlx.svg?branch=master)](https://travis-ci.org/TaktInc/reflex-dhtmlx)
+
 Requirements
 ------------
 
