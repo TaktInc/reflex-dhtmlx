@@ -6,9 +6,9 @@
 
 module Main (main) where
 
-import qualified Data.Text                         as T
+import           Control.Monad.IO.Class     (liftIO)
+import qualified Data.Text                  as T
 import           Data.Time.LocalTime
-import           Language.Javascript.JSaddle.Types (JSM, liftJSM)
 import           Reflex.Dom
 import           Reflex.Dom.DHTMLX.Date
 import           Reflex.Dom.DHTMLX.DateTime
@@ -16,7 +16,7 @@ import           Reflex.Dom.DHTMLX.DateTime
 
 app :: MonadWidget t m => m ()
 app = do
-  zone <- liftJSM getCurrentTimeZone
+  zone <- liftIO getCurrentTimeZone
 
   el "section" $ do
     el "h2" $ text "Date Time Widget Test"

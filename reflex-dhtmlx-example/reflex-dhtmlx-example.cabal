@@ -27,6 +27,7 @@ executable example
     , reflex-dhtmlx
     , time
     , text          >= 1.2  && < 1.3
+    , transformers
 
 source-repository head
   type: git
