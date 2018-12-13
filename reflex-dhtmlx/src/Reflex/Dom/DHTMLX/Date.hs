@@ -8,55 +8,44 @@
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 
-module Reflex.Dom.DHTMLX.Date where
+module Reflex.Dom.DHTMLX.Date
+  ( dhtmlxDatePicker
+  , DatePickerConfig (..)
+  , datePickerConfig_initialValue
+  , datePickerConfig_setValue
+  , datePickerConfig_button
+  , datePickerConfig_parent
+  , datePickerConfig_weekStart
+  , datePickerConfig_attributes
+  , datePickerConfig_visibleOnLoad
+  ) where
 
 ------------------------------------------------------------------------------
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Default
-import           Data.Map                (Map)
+import           Data.Map                    (Map)
 import           Data.Maybe
-import           Data.Text               (Text)
-import qualified Data.Text               as T
+import           Data.Text                   (Text)
+import qualified Data.Text                   as T
 import           Data.Time
 import           GHCJS.DOM.Element
 import           Language.Javascript.JSaddle hiding (create)
-import           Reflex.Dom.Core hiding (Element, fromJSString)
-import           Reflex.Dom.DHTMLX.Common
+import           Reflex.Dom.Core             hiding (Element, fromJSString)
+import           Reflex.Dom.DHTMLX.Common    (DhtmlxCalendar, WeekDay (..),
+                                              calendarConfig_button,
+                                              calendarConfig_input,
+                                              calendarConfig_parent,
+                                              calendarConfig_weekStart,
+                                              dateWidgetHide, dateWidgetShow,
+                                              hideTime, setDate, setPosition,
+                                              withCalendar)
+
 ------------------------------------------------------------------------------
 
-newtype DateWidgetRef = DateWidgetRef
-    { unDateWidgetRef :: DhtmlxCalendar }
+newtype DateWidgetRef = DateWidgetRef DhtmlxCalendar
   deriving (ToJSVal, MakeObject)
-
-------------------------------------------------------------------------------
-createDhtmlxDateWidget :: Element -> WeekDay -> JSM DateWidgetRef
-createDhtmlxDateWidget = createDhtmlxDateWidget' Nothing
-
-
-------------------------------------------------------------------------------
-createDhtmlxDateWidgetButton
-    :: Element
-    -> Element
-    -> WeekDay
-    -> JSM DateWidgetRef
-createDhtmlxDateWidgetButton = createDhtmlxDateWidget' . Just
-
-
-------------------------------------------------------------------------------
-createDhtmlxDateWidget'
-    :: Maybe Element
-    -> Element
-    -> WeekDay
-    -> JSM DateWidgetRef
-createDhtmlxDateWidget' btnElmt elmt wstart = do
-    cal <- createDhtmlxCalendar $ def
-      & calendarConfig_button .~ btnElmt
-      & calendarConfig_input .~ Just elmt
-      & calendarConfig_weekStart .~ wstart
-    hideTime cal
-    return $ DateWidgetRef cal
 
 
 ------------------------------------------------------------------------------

@@ -1,5 +1,5 @@
-{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE RankNTypes                 #-}
@@ -9,7 +9,17 @@
 {-# LANGUAGE TypeFamilies               #-}
 
 module Reflex.Dom.DHTMLX.DateTime
-  ( module Reflex.Dom.DHTMLX.DateTime
+  ( dhtmlxDateTimePicker
+  , DateTimePickerConfig (..)
+  , dateTimePickerConfig_initialValue
+  , dateTimePickerConfig_setValue
+  , dateTimePickerConfig_button
+  , dateTimePickerConfig_parent
+  , dateTimePickerConfig_weekStart
+  , dateTimePickerConfig_minutesInterval
+  , dateTimePickerConfig_attributes
+  , dateTimePickerConfig_visibleOnLoad
+  , dateTimePickerConfig_timeZone
   , MinutesInterval (..)
   , minutesIntervalToInt
   ) where
@@ -19,38 +29,32 @@ import           Control.Lens
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Default
+import           Data.Map                    (Map)
 import           Data.Maybe
-import           Data.Map                (Map)
-import           Data.Text               (Text)
-import qualified Data.Text               as T
+import           Data.Text                   (Text)
+import qualified Data.Text                   as T
 import           Data.Time
 import           GHCJS.DOM.Element
 import           Language.Javascript.JSaddle hiding (create)
-import           Reflex.Dom.Core hiding (Element, fromJSString)
-import           Reflex.Dom.DHTMLX.Common
+import           Reflex.Dom.Core             hiding (Element, fromJSString)
+import           Reflex.Dom.DHTMLX.Common    (DhtmlxCalendar,
+                                              MinutesInterval (..),
+                                              WeekDay (..),
+                                              calendarConfig_button,
+                                              calendarConfig_input,
+                                              calendarConfig_minutesInterval,
+                                              calendarConfig_parent,
+                                              calendarConfig_weekStart,
+                                              dateWidgetHide, dateWidgetShow,
+                                              minutesIntervalToInt,
+                                              setDateFormat, setFormattedDate,
+                                              setMinutesInterval, setPosition,
+                                              withCalendar)
+
 ------------------------------------------------------------------------------
 
-newtype DateTimeWidgetRef = DateTimeWidgetRef
-  { unDateTimeWidgetRef :: DhtmlxCalendar }
+newtype DateTimeWidgetRef = DateTimeWidgetRef DhtmlxCalendar
   deriving (ToJSVal, MakeObject)
-
-
-------------------------------------------------------------------------------
-createDhtmlxDateTimeWidget
-    :: Element
-    -> WeekDay
-    -> MinutesInterval
-    -> JSM DateTimeWidgetRef
-createDhtmlxDateTimeWidget = createDhtmlxDateTimeWidget' Nothing
-
-------------------------------------------------------------------------------
-createDhtmlxDateTimeWidgetButton
-    :: Element
-    -> Element
-    -> WeekDay
-    -> MinutesInterval
-    -> JSM DateTimeWidgetRef
-createDhtmlxDateTimeWidgetButton btnElmt = createDhtmlxDateTimeWidget' (Just btnElmt)
 
 
 dateTimeFormat :: String
@@ -64,24 +68,6 @@ calendarsDateTimeFormat = "%Y-%m-%d %H:%i"
 dateTimeFormatter :: UTCTime -> String
 dateTimeFormatter = formatTime defaultTimeLocale dateTimeFormat
 
-
-------------------------------------------------------------------------------
-createDhtmlxDateTimeWidget'
-    :: Maybe Element
-    -> Element
-    -> WeekDay
-    -> MinutesInterval
-    -> JSM DateTimeWidgetRef
-createDhtmlxDateTimeWidget' btnElmt elmt wstart mint = do
-    let config = def
-          & calendarConfig_button .~ btnElmt
-          & calendarConfig_input .~ Just elmt
-          & calendarConfig_weekStart .~ wstart
-    cal <- createDhtmlxCalendar config
-    setMinutesInterval cal mint
-    setDateFormat cal $ T.pack calendarsDateTimeFormat
-    showTime cal
-    return $ DateTimeWidgetRef cal
 
 ------------------------------------------------------------------------------
 getDateTimeWidgetValue :: MonadJSM m => DateTimeWidgetRef -> m Text
@@ -115,12 +101,13 @@ data DateTimePickerConfig t = DateTimePickerConfig
     , _dateTimePickerConfig_minutesInterval :: MinutesInterval
     , _dateTimePickerConfig_attributes      :: Dynamic t (Map Text Text)
     , _dateTimePickerConfig_visibleOnLoad   :: Bool
+    , _dateTimePickerConfig_timeZone        :: TimeZone
     }
 
 makeLenses ''DateTimePickerConfig
 
 instance Reflex t => Default (DateTimePickerConfig t) where
-    def = DateTimePickerConfig Nothing never Nothing Nothing Sunday Minutes1 mempty False
+    def = DateTimePickerConfig Nothing never Nothing Nothing Sunday Minutes1 mempty False utc
 
 instance HasAttributes (DateTimePickerConfig t) where
   type Attrs (DateTimePickerConfig t) = Dynamic t (Map Text Text)
@@ -139,30 +126,33 @@ dhtmlxDateTimePicker
     :: forall t m. MonadWidget t m
     => DateTimePickerConfig t
     -> m (DateTimePicker t)
-dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad) = mdo
-    let formatter = T.pack . maybe "" dateTimeFormatter
+dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad zone) = mdo
+    let formatter = T.pack . maybe ""
+          (formatTime defaultTimeLocale dateTimeFormat . utcToZonedTime zone)
         ivTxt     = formatter iv
-        evVal     = leftmost [formatter <$> sv, ups]
     ti <- textInput $ def
       & attributes .~ attrs
       & textInputConfig_initialValue .~ ivTxt
-      & textInputConfig_setValue .~ evVal
+      & textInputConfig_setValue .~ leftmost [formatter <$> sv, formatter . parser <$> ups]
     let dateEl = toElement $ _textInput_element ti
         config = def
             & calendarConfig_button .~ b
             & calendarConfig_parent .~ p
-            & calendarConfig_input .~ Just dateEl
+            & calendarConfig_input ?~ dateEl
             & calendarConfig_minutesInterval .~ mint
             & calendarConfig_weekStart .~ wstart
     ups <- withCalendar config $ \cal -> do
       when visibleOnLoad (dateWidgetShow cal)
       when (isJust p) $ setPosition cal 0 0
+      setMinutesInterval cal mint
+      setDateFormat cal $ T.pack calendarsDateTimeFormat
       ups' <- dateWidgetUpdates $ DateTimeWidgetRef cal
       performEvent_ $ dateWidgetHide cal <$ ups'
       performEvent_ $ ffor (fmapMaybe (fmap (T.pack . dateTimeFormatter)) sv) $
-        setFormattedDate cal $ T.pack calendarsDateTimeFormat
+         setFormattedDate cal $ T.pack dateTimeFormat
       return ups'
-    let parser   = parseTimeM True defaultTimeLocale dateTimeFormat . T.unpack
+    let parser   = fmap (zonedTimeToUTC . (\dd -> dd {zonedTimeZone = zone}))
+                 . parseTimeM True defaultTimeLocale dateTimeFormat . T.unpack
         evParsed = parser <$> leftmost [_textInput_input ti, ups]
     dVal <- holdDyn iv evParsed
     return $ DateTimePicker dVal
