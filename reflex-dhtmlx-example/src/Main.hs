@@ -24,7 +24,7 @@ app = do
 
   el "section" $ do
     el "h2" $ text "Date Time Widget Test"
-    text "we set this widget to be 24 hours ago by default"
+    el "div" $ text "we set this widget to be 24 hours ago by default"
     rec date <- dhtmlxDateTimePicker $ def
                   & dateTimePickerConfig_button .~ Just (_element_raw e)
                   & dateTimePickerConfig_timeZone .~ zone
@@ -35,7 +35,7 @@ app = do
     return date
 
     el "h2" $ text "Date Time Widget based on the above widget"
-    text "we leave this one unset to show default behavior"
+    el "div" $ text "we leave this one unset to show default behavior"
     rec date' <- dhtmlxDateTimePicker $ def
                   & dateTimePickerConfig_button .~ Just (_element_raw e)
                   & dateTimePickerConfig_timeZone .~ zone
@@ -46,7 +46,7 @@ app = do
 
   el "section" $ do
     el "h2" $ text "Date Widget Test"
-    text "we set this widget to be 24 hours ago by default"
+    el "div" $ text "we set this widget to be 24 hours ago by default"
     rec date <- dhtmlxDatePicker $ def
                   & datePickerConfig_button .~ Just (_element_raw e)
                   & datePickerConfig_initialValue .~ Just (utctDay yesterday)
@@ -54,7 +54,7 @@ app = do
     el "div" . dynText $ T.pack . ("selected time is: " ++) . show <$> value date
 
     el "h2" $ text "Date Widget Test based on the above widget"
-    text "we leave this one unset to show default behavior"
+    el "div" $ text "we leave this one unset to show default behavior"
     rec date' <- dhtmlxDatePicker $ def
                   & datePickerConfig_button .~ Just (_element_raw e)
                   & datePickerConfig_setValue .~ updated (_datePicker_value date)
