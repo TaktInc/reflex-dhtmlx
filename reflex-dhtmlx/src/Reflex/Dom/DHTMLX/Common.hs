@@ -15,7 +15,6 @@ module Reflex.Dom.DHTMLX.Common
   , setPosition
   , withCalendar
   , showTime, hideTime
-  , setDate
   , setFormattedDate, setDateFormat
   , minutesIntervalToInt
   ) where
@@ -60,9 +59,6 @@ setPosition cal x y = liftJSM $ void $ cal ^. js2 "setPosition" x y
 
 setDateFormat :: MonadJSM m => DhtmlxCalendar -> Text -> m ()
 setDateFormat cal fmt = liftJSM $ void $ cal ^. js1 "setDateFormat" fmt
-
-setDate :: MonadJSM m => DhtmlxCalendar -> Text -> m ()
-setDate cal date = liftJSM $ void $ cal ^. js1 "setDate" date
 
 setFormattedDate :: MonadJSM m => DhtmlxCalendar -> Text -> Text -> m ()
 setFormattedDate cal fmt date = liftJSM $ void $ cal ^. js2 "setFormatedDate" fmt date

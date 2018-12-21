@@ -11,6 +11,8 @@
 module Reflex.Dom.DHTMLX.DateTime
   ( dhtmlxDateTimePicker
   , DateTimePickerConfig (..)
+  , DateTimePicker
+  , _dateTimePicker_value
   , dateTimePickerConfig_initialValue
   , dateTimePickerConfig_setValue
   , dateTimePickerConfig_button
@@ -130,10 +132,11 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
     let formatter = T.pack . maybe ""
           (formatTime defaultTimeLocale dateTimeFormat . utcToZonedTime zone)
         ivTxt     = formatter iv
+    -- we set the text input with postBuild due to a race condition in dhtmlx-calendar
+    pb <- getPostBuild
     ti <- textInput $ def
       & attributes .~ attrs
-      & textInputConfig_initialValue .~ ivTxt
-      & textInputConfig_setValue .~ leftmost [formatter <$> sv, formatter . parser <$> ups]
+      & textInputConfig_setValue .~ leftmost [formatter <$> sv, formatter . parser <$> ups, ivTxt <$ pb]
     let dateEl = toElement $ _textInput_element ti
         config = def
             & calendarConfig_button .~ b
@@ -153,6 +156,7 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
       return ups'
     let parser   = fmap (zonedTimeToUTC . (\dd -> dd {zonedTimeZone = zone}))
                  . parseTimeM True defaultTimeLocale dateTimeFormat . T.unpack
-        evParsed = parser <$> leftmost [_textInput_input ti, ups]
+        evParsed = leftmost [parser <$> _textInput_input ti, parser <$> ups, sv]
     dVal <- holdDyn iv evParsed
     return $ DateTimePicker dVal
+

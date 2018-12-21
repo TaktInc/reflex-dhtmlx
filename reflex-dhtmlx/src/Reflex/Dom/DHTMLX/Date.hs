@@ -11,6 +11,8 @@
 module Reflex.Dom.DHTMLX.Date
   ( dhtmlxDatePicker
   , DatePickerConfig (..)
+  , DatePicker
+  , _datePicker_value
   , datePickerConfig_initialValue
   , datePickerConfig_setValue
   , datePickerConfig_button
@@ -39,7 +41,7 @@ import           Reflex.Dom.DHTMLX.Common    (DhtmlxCalendar, WeekDay (..),
                                               calendarConfig_parent,
                                               calendarConfig_weekStart,
                                               dateWidgetHide, dateWidgetShow,
-                                              hideTime, setDate, setPosition,
+                                              hideTime, setPosition,
                                               withCalendar)
 
 ------------------------------------------------------------------------------
@@ -100,10 +102,12 @@ dhtmlxDatePicker
 dhtmlxDatePicker (DatePickerConfig iv sv b p wstart attrs visibleOnLoad) = do
     let fmt = "%Y-%m-%d"
         formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt)
+        ivTxt = formatter iv
+    -- we set the text input with postBuild due to a race condition in dhtmlx-calendar
+    pb <- getPostBuild
     ti <- textInput $ def
       & attributes .~ attrs
-      & textInputConfig_initialValue .~ formatter iv
-      & textInputConfig_setValue .~ fmap formatter sv
+      & textInputConfig_setValue .~ leftmost [formatter <$> sv, ivTxt <$ pb]
     let dateEl = toElement $ _textInput_element ti
         config = def
           & calendarConfig_button .~ b
@@ -112,11 +116,10 @@ dhtmlxDatePicker (DatePickerConfig iv sv b p wstart attrs visibleOnLoad) = do
           & calendarConfig_weekStart .~ wstart
     ups <- withCalendar config $ \cal -> do
       hideTime cal
-      setDate cal $ formatter iv
       when (isJust p) $ setPosition cal 0 0
       when visibleOnLoad $ dateWidgetShow cal
       ups <- dateWidgetUpdates $ DateWidgetRef cal
       performEvent_ $ dateWidgetHide cal <$ ups
       return ups
     let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
-    fmap DatePicker $ holdDyn iv $ parser <$> leftmost [_textInput_input ti, ups]
+    fmap DatePicker $ holdDyn iv $ leftmost [parser <$> _textInput_input ti, parser <$> ups, sv]
