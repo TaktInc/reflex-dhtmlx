@@ -11,6 +11,8 @@
 module Reflex.Dom.DHTMLX.Date
   ( dhtmlxDatePicker
   , DatePickerConfig (..)
+  , DatePicker
+  , _datePicker_value
   , datePickerConfig_initialValue
   , datePickerConfig_setValue
   , datePickerConfig_button
@@ -100,10 +102,12 @@ dhtmlxDatePicker
 dhtmlxDatePicker (DatePickerConfig iv sv b p wstart attrs visibleOnLoad) = do
     let fmt = "%Y-%m-%d"
         formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt)
+        ivTxt = formatter iv
+    pb <- getPostBuild
     ti <- textInput $ def
       & attributes .~ attrs
-      & textInputConfig_initialValue .~ formatter iv
-      & textInputConfig_setValue .~ fmap formatter sv
+      & textInputConfig_initialValue .~ ivTxt
+      & textInputConfig_setValue .~ leftmost [formatter <$> sv, ivTxt <$ pb]
     let dateEl = toElement $ _textInput_element ti
         config = def
           & calendarConfig_button .~ b
@@ -119,4 +123,4 @@ dhtmlxDatePicker (DatePickerConfig iv sv b p wstart attrs visibleOnLoad) = do
       performEvent_ $ dateWidgetHide cal <$ ups
       return ups
     let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
-    fmap DatePicker $ holdDyn iv $ parser <$> leftmost [_textInput_input ti, ups]
+    fmap DatePicker $ holdDyn iv $ leftmost [parser <$> leftmost [_textInput_input ti, ups], sv]
