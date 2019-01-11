@@ -150,7 +150,6 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
       setMinutesInterval cal mint
       setDateFormat cal $ T.pack calendarsDateTimeFormat
       ups' <- dateWidgetUpdates $ DateTimeWidgetRef cal
-      performEvent_ $ dateWidgetHide cal <$ ups'
       performEvent_ $ ffor (fmapMaybe (fmap (T.pack . dateTimeFormatter)) sv) $
          setFormattedDate cal $ T.pack dateTimeFormat
       return ups'

@@ -119,7 +119,6 @@ dhtmlxDatePicker (DatePickerConfig iv sv b p wstart attrs visibleOnLoad) = do
       when (isJust p) $ setPosition cal 0 0
       when visibleOnLoad $ dateWidgetShow cal
       ups <- dateWidgetUpdates $ DateWidgetRef cal
-      performEvent_ $ dateWidgetHide cal <$ ups
       return ups
     let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
     fmap DatePicker $ holdDyn iv $ leftmost [parser <$> _textInput_input ti, parser <$> ups, sv]
