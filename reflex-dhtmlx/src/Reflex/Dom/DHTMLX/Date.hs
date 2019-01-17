@@ -20,6 +20,7 @@ module Reflex.Dom.DHTMLX.Date
   , datePickerConfig_weekStart
   , datePickerConfig_attributes
   , datePickerConfig_visibleOnLoad
+  , datePickerConfig_hideRule
   ) where
 
 ------------------------------------------------------------------------------
@@ -75,12 +76,14 @@ data DatePickerConfig t = DatePickerConfig
     , _datePickerConfig_weekStart     :: WeekDay
     , _datePickerConfig_attributes    :: Dynamic t (Map Text Text)
     , _datePickerConfig_visibleOnLoad :: Bool
+    -- | a function from the date update event to an event that hides the date picker. Defaulted to id.
+    , _datePickerConfig_hideRule      :: Event t () -> Event t ()
     }
 
 makeLenses ''DatePickerConfig
 
 instance Reflex t => Default (DatePickerConfig t) where
-    def = DatePickerConfig Nothing never Nothing Nothing Sunday mempty False
+    def = DatePickerConfig Nothing never Nothing Nothing Sunday mempty False id
 
 instance HasAttributes (DatePickerConfig t) where
   type Attrs (DatePickerConfig t) = Dynamic t (Map Text Text)
@@ -99,7 +102,7 @@ dhtmlxDatePicker
     :: forall t m. MonadWidget t m
     => DatePickerConfig t
     -> m (DatePicker t)
-dhtmlxDatePicker (DatePickerConfig iv sv b p wstart attrs visibleOnLoad) = do
+dhtmlxDatePicker (DatePickerConfig iv sv b p wstart attrs visibleOnLoad hideRule) = do
     let fmt = "%Y-%m-%d"
         formatter = T.pack . maybe "" (formatTime defaultTimeLocale fmt)
         ivTxt = formatter iv
@@ -119,7 +122,7 @@ dhtmlxDatePicker (DatePickerConfig iv sv b p wstart attrs visibleOnLoad) = do
       when (isJust p) $ setPosition cal 0 0
       when visibleOnLoad $ dateWidgetShow cal
       ups <- dateWidgetUpdates $ DateWidgetRef cal
-      performEvent_ $ dateWidgetHide cal <$ ups
+      performEvent_ $ dateWidgetHide cal <$ hideRule (() <$ ups)
       return ups
     let parser = parseTimeM True defaultTimeLocale fmt . T.unpack
     fmap DatePicker $ holdDyn iv $ leftmost [parser <$> _textInput_input ti, parser <$> ups, sv]
