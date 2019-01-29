@@ -44,6 +44,7 @@ import           Reflex.Dom.DHTMLX.Common    (DhtmlxCalendar,
                                               MinutesInterval (..),
                                               WeekDay (..),
                                               calendarConfig_button,
+                                              calendarConfig_format,
                                               calendarConfig_input,
                                               calendarConfig_minutesInterval,
                                               calendarConfig_parent,
@@ -136,11 +137,10 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
     let formatter = T.pack . maybe ""
           (formatTime defaultTimeLocale dateTimeFormat . utcToZonedTime zone)
         ivTxt     = formatter iv
-    -- we set the text input with postBuild due to a race condition in dhtmlx-calendar
-    pb <- getPostBuild
     ti <- textInput $ def
       & attributes .~ attrs
-      & textInputConfig_setValue .~ leftmost [formatter <$> sv, formatter . parser <$> ups, ivTxt <$ pb]
+      & textInputConfig_initialValue .~ ivTxt
+      & textInputConfig_setValue .~ leftmost [formatter <$> sv, formatter . parser <$> ups]
     let dateEl = toElement $ _textInput_element ti
         config = def
             & calendarConfig_button .~ b
@@ -148,11 +148,11 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
             & calendarConfig_input ?~ dateEl
             & calendarConfig_minutesInterval .~ mint
             & calendarConfig_weekStart .~ wstart
+            & calendarConfig_format .~ Just calendarsDateTimeFormat
     ups <- withCalendar config $ \cal -> do
       when visibleOnLoad (dateWidgetShow cal)
       when (isJust p) $ setPosition cal 0 0
       setMinutesInterval cal mint
-      setDateFormat cal $ T.pack calendarsDateTimeFormat
       (ups', timeups') <- dateWidgetUpdates $ DateTimeWidgetRef cal
       performEvent_ $ dateWidgetHide cal <$ hideRule (() <$ ups')
       performEvent_ $ ffor (fmapMaybe (fmap (T.pack . dateTimeFormatter)) sv) $

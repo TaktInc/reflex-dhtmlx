@@ -10,6 +10,7 @@ module Reflex.Dom.DHTMLX.Common
   , calendarConfig_minutesInterval
   , calendarConfig_parent
   , calendarConfig_weekStart
+  , calendarConfig_format
   , dateWidgetHide, dateWidgetShow
   , setMinutesInterval
   , setPosition
@@ -22,7 +23,7 @@ module Reflex.Dom.DHTMLX.Common
 import           Control.Lens
 import           Control.Monad
 import           Data.Default
-import           Data.Text                   (Text)
+import           Data.Text                   (Text, pack)
 import           GHCJS.DOM.Element
 import           Language.Javascript.JSaddle
 import           Reflex.Dom.Core             hiding (Element)
@@ -94,14 +95,14 @@ createDhtmlxCalendar config = do
       Nothing -> do
         no <- toJSVal ValUndefined
         cal <- createCal no
-        attachObj cal (_calendarConfig_input config) (_calendarConfig_button config)
         return cal
       Just parent -> do
         cal <- createCal (toJSVal parent)
-        attachObj cal (_calendarConfig_input config) (_calendarConfig_button config)
         return cal
     setMinutesInterval cal (_calendarConfig_minutesInterval config)
     setWeekStartDay cal (_calendarConfig_weekStart config)
+    mapM_ (setDateFormat cal . pack) $ _calendarConfig_format config
+    attachObj cal (_calendarConfig_input config) (_calendarConfig_button config)
     return cal
 
 withCalendar
@@ -129,9 +130,10 @@ data CalendarConfig = CalendarConfig
     , _calendarConfig_button          :: Maybe Element
     , _calendarConfig_weekStart       :: WeekDay
     , _calendarConfig_minutesInterval :: MinutesInterval
+    , _calendarConfig_format          :: Maybe String
     }
 
 instance Default CalendarConfig where
-  def = CalendarConfig Nothing Nothing Nothing Monday Minutes1
+  def = CalendarConfig Nothing Nothing Nothing Monday Minutes1 Nothing
 
 makeLenses ''CalendarConfig
