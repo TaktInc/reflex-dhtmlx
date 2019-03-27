@@ -37,8 +37,7 @@ import           Data.Maybe
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import           Data.Time
-import           Data.Time.LocalTime.TimeZone.Series (TimeZoneSeries (..),
-                                                      timeZoneFromSeries)
+import           Data.Time.Zones
 import           GHCJS.DOM.Element
 import           Language.Javascript.JSaddle hiding (create)
 import           Reflex.Dom.Core             hiding (Element, fromJSString)
@@ -107,7 +106,7 @@ data DateTimePickerConfig t = DateTimePickerConfig
     , _dateTimePickerConfig_minutesInterval :: MinutesInterval
     , _dateTimePickerConfig_attributes      :: Dynamic t (Map Text Text)
     , _dateTimePickerConfig_visibleOnLoad   :: Bool
-    , _dateTimePickerConfig_timeZone        :: TimeZoneSeries
+    , _dateTimePickerConfig_timeZone        :: TZ
     -- | a function from the date update event to an event that hides the date picker. Defaulted to id.
     , _dateTimePickerConfig_hideRule        :: Event t () -> Event t ()
     }
@@ -115,9 +114,7 @@ data DateTimePickerConfig t = DateTimePickerConfig
 makeLenses ''DateTimePickerConfig
 
 instance Reflex t => Default (DateTimePickerConfig t) where
-    def = DateTimePickerConfig Nothing never Nothing Nothing Sunday Minutes1 mempty False utcSeries id
-      where
-        utcSeries = TimeZoneSeries utc mempty
+    def = DateTimePickerConfig Nothing never Nothing Nothing Sunday Minutes1 mempty False utcTZ id
 
 instance HasAttributes (DateTimePickerConfig t) where
   type Attrs (DateTimePickerConfig t) = Dynamic t (Map Text Text)
@@ -136,9 +133,8 @@ dhtmlxDateTimePicker
     :: forall t m. MonadWidget t m
     => DateTimePickerConfig t
     -> m (DateTimePicker t)
-dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad zoneSeries hideRule) = mdo
-    let formatter        = T.pack . maybe "" formatZoneSeries
-        formatZoneSeries = formatTime defaultTimeLocale dateTimeFormat . zonedTimeFromSeries zoneSeries
+dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad zone hideRule) = mdo
+    let formatter = T.pack . maybe "" (formatTime defaultTimeLocale dateTimeFormat . utcToZonedTime' zone)
     -- we set the text input with postBuild due to a race condition in dhtmlx-calendar
     pb <- getPostBuild
     ti <- textInput $ def
@@ -161,13 +157,13 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
       performEvent_ $ ffor (fmapMaybe (fmap (T.pack . dateTimeFormatter)) sv) $
          setFormattedDate cal $ T.pack dateTimeFormat
       return $ leftmost [ups', timeups']
-    let parser   = fmap (zonedTimeToUTC . (\zt -> zt {zonedTimeZone = timeZoneFromSeries' zoneSeries zt}))
+    let parser   = fmap (zonedTimeToUTC . (\zt -> zt {zonedTimeZone = zonedTimeActualTZ zone zt}))
                  . parseTimeM True defaultTimeLocale dateTimeFormat . T.unpack
         evParsed = leftmost [parser <$> _textInput_input ti, parser <$> ups, sv]
     dVal <- holdDyn iv evParsed
     return $ DateTimePicker dVal
     where
-      zonedTimeFromSeries :: TimeZoneSeries -> UTCTime -> ZonedTime
-      zonedTimeFromSeries tzs t = utcToZonedTime (timeZoneFromSeries tzs t) t
-      timeZoneFromSeries' :: TimeZoneSeries -> ZonedTime -> TimeZone
-      timeZoneFromSeries' tzs = timeZoneFromSeries tzs . zonedTimeToUTC
+      utcToZonedTime' :: TZ -> UTCTime -> ZonedTime
+      utcToZonedTime' tz t = utcToZonedTime (timeZoneForUTCTime tz t) t
+      zonedTimeActualTZ :: TZ -> ZonedTime -> TimeZone
+      zonedTimeActualTZ tz = timeZoneForUTCTime tz . zonedTimeToUTC
