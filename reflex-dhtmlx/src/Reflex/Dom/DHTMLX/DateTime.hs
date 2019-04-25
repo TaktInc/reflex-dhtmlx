@@ -136,7 +136,8 @@ dhtmlxDateTimePicker
 dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad zone hideRule) = mdo
     let formatter = T.pack . maybe "" (formatTime defaultTimeLocale dateTimeFormat . utcToZonedTime' zone)
     -- we set the text input with postBuild due to a race condition in dhtmlx-calendar
-    pb <- getPostBuild
+    -- add 100ms to avoid it more
+    pb <- delay 0.1 =<< getPostBuild
     ti <- textInput $ def
       & attributes .~ attrs
       & textInputConfig_setValue .~ leftmost [formatter <$> sv, formatter . parser <$> ups, formatter iv <$ pb]
