@@ -28,6 +28,7 @@ executable example
     , time
     , text          >= 1.2  && < 1.3
     , transformers
+    , tz
 
 source-repository head
   type: git
