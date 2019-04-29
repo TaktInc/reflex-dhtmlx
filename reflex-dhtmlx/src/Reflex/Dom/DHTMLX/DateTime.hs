@@ -37,6 +37,7 @@ import           Data.Maybe
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import           Data.Time
+import           Data.Time.Zones
 import           GHCJS.DOM.Element
 import           Language.Javascript.JSaddle hiding (create)
 import           Reflex.Dom.Core             hiding (Element, fromJSString)
@@ -51,7 +52,7 @@ import           Reflex.Dom.DHTMLX.Common    (DhtmlxCalendar,
                                               calendarConfig_weekStart,
                                               dateWidgetHide, dateWidgetShow,
                                               minutesIntervalToInt,
-                                              setDateFormat, setFormattedDate,
+                                              setFormattedDate,
                                               setMinutesInterval, setPosition,
                                               withCalendar)
 
@@ -106,7 +107,7 @@ data DateTimePickerConfig t = DateTimePickerConfig
     , _dateTimePickerConfig_minutesInterval :: MinutesInterval
     , _dateTimePickerConfig_attributes      :: Dynamic t (Map Text Text)
     , _dateTimePickerConfig_visibleOnLoad   :: Bool
-    , _dateTimePickerConfig_timeZone        :: TimeZone
+    , _dateTimePickerConfig_timeZone        :: TZ
     -- | a function from the date update event to an event that hides the date picker. Defaulted to id.
     , _dateTimePickerConfig_hideRule        :: Event t () -> Event t ()
     }
@@ -114,7 +115,7 @@ data DateTimePickerConfig t = DateTimePickerConfig
 makeLenses ''DateTimePickerConfig
 
 instance Reflex t => Default (DateTimePickerConfig t) where
-    def = DateTimePickerConfig Nothing never Nothing Nothing Sunday Minutes1 mempty False utc id
+    def = DateTimePickerConfig Nothing never Nothing Nothing Sunday Minutes1 mempty False utcTZ id
 
 instance HasAttributes (DateTimePickerConfig t) where
   type Attrs (DateTimePickerConfig t) = Dynamic t (Map Text Text)
@@ -134,9 +135,8 @@ dhtmlxDateTimePicker
     => DateTimePickerConfig t
     -> m (DateTimePicker t)
 dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOnLoad zone hideRule) = mdo
-    let formatter = T.pack . maybe ""
-          (formatTime defaultTimeLocale dateTimeFormat . utcToZonedTime zone)
-        ivTxt     = formatter iv
+    let formatter = T.pack . maybe "" (formatTime defaultTimeLocale dateTimeFormat . utcToZonedTime' zone)
+        ivTxt = formatter iv
     ti <- textInput $ def
       & attributes .~ attrs
       & textInputConfig_initialValue .~ ivTxt
@@ -158,9 +158,13 @@ dhtmlxDateTimePicker (DateTimePickerConfig iv sv b p wstart mint attrs visibleOn
       performEvent_ $ ffor (fmapMaybe (fmap (T.pack . dateTimeFormatter)) sv) $
          setFormattedDate cal $ T.pack dateTimeFormat
       return $ leftmost [ups', timeups']
-    let parser   = fmap (zonedTimeToUTC . (\dd -> dd {zonedTimeZone = zone}))
+    let parser   = fmap (zonedTimeToUTC . (\zt -> zt {zonedTimeZone = zonedTimeActualTZ zone zt}))
                  . parseTimeM True defaultTimeLocale dateTimeFormat . T.unpack
         evParsed = leftmost [parser <$> _textInput_input ti, parser <$> ups, sv]
     dVal <- holdDyn iv evParsed
     return $ DateTimePicker dVal
-
+    where
+      utcToZonedTime' :: TZ -> UTCTime -> ZonedTime
+      utcToZonedTime' tz t = utcToZonedTime (timeZoneForUTCTime tz t) t
+      zonedTimeActualTZ :: TZ -> ZonedTime -> TimeZone
+      zonedTimeActualTZ tz = timeZoneForUTCTime tz . zonedTimeToUTC

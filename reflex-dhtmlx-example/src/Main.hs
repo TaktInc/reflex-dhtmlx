@@ -10,7 +10,7 @@ import           Control.Monad.IO.Class     (liftIO)
 import qualified Data.Text                  as T
 import           Data.Time.Clock            (addUTCTime, getCurrentTime,
                                              utctDay)
-import           Data.Time.LocalTime
+import           Data.Time.Zones.Read
 import           Reflex.Dom
 import           Reflex.Dom.DHTMLX.Date
 import           Reflex.Dom.DHTMLX.DateTime
@@ -18,7 +18,7 @@ import           Reflex.Dom.DHTMLX.DateTime
 
 app :: MonadWidget t m => m ()
 app = do
-  zone <- liftIO getCurrentTimeZone
+  zone <- liftIO loadLocalTZ -- posix only
 
   yesterday <- addUTCTime (realToFrac . negate $ 60 * 60 * 24) <$> liftIO getCurrentTime
 
